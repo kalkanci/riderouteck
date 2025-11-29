@@ -1,0 +1,7 @@
+{
+  "name": "MotoRota",
+  "description": "Motosikletliler için hava durumu destekli akıllı rota asistanı.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
