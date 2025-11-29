@@ -1,38 +1,29 @@
 import { LocationData, WeatherData, RouteAlternative } from "../types";
 
-// OpenStreetMap Nominatim Search
+// Open-Meteo Geocoding Search (More reliable than Nominatim for demos)
 export const searchLocation = async (query: string): Promise<LocationData[]> => {
   if (query.length < 3) return [];
   try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5&countrycodes=tr`);
+    const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=tr&format=json`);
     const data = await res.json();
     
-    if (!data || data.length === 0) return [];
+    if (!data || !data.results || data.results.length === 0) return [];
     
-    return data.map((item: any) => {
-      const name = item.name || item.address?.amenity || item.address?.road || "";
-      const district = item.address?.suburb || item.address?.town || item.address?.city_district || "";
-      const city = item.address?.province || item.address?.city || item.address?.state || "";
-      
-      const displayName = name ? name : district;
-      const adminName = city ? (district ? `${district}, ${city}` : city) : "";
-
-      return {
-        name: displayName || adminName,
-        lat: parseFloat(item.lat),
-        lng: parseFloat(item.lon),
-        admin1: adminName
-      };
-    });
+    return data.results.map((item: any) => ({
+      name: item.name,
+      lat: item.latitude,
+      lng: item.longitude,
+      admin1: item.admin1 || item.country
+    }));
   } catch (e) {
     console.error("Search error", e);
     return [];
   }
 };
 
-// Open-Meteo Reverse Geocoding
+// Open-Meteo Reverse Geocoding (Not natively supported in free tier efficiently, returning formatted coords for now)
 export const getCityNameFromCoords = async (lat: number, lng: number): Promise<string> => {
-    return `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
+    return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 };
 
 // IPAPI for fallback location
@@ -40,6 +31,7 @@ export const getIpLocation = async (): Promise<LocationData | null> => {
   try {
     const res = await fetch('https://ipapi.co/json/');
     const data = await res.json();
+    if (data.error) return null;
     return {
       name: data.city,
       lat: data.latitude,
@@ -114,7 +106,8 @@ export const getWeatherForPoint = async (lat: number, lng: number): Promise<Weat
     
     const currentHour = new Date().getHours();
     const rainProb = data.hourly?.precipitation_probability?.[currentHour] || 0;
-    
+    const hourlyRainForecast = data.hourly?.precipitation_probability || [];
+
     return {
       lat,
       lng,
@@ -123,10 +116,11 @@ export const getWeatherForPoint = async (lat: number, lng: number): Promise<Weat
       windDirection: current.wind_direction_10m,
       rain: current.rain,
       rainProb: rainProb,
-      weatherCode: current.weather_code
+      weatherCode: current.weather_code,
+      hourlyRainForecast: hourlyRainForecast
     };
   } catch (e) {
     console.error("Weather error", e);
-    return { lat, lng, temp: 0, rain: 0, rainProb: 0, windSpeed: 0, windDirection: 0, weatherCode: 0 };
+    return { lat, lng, temp: 0, rain: 0, rainProb: 0, windSpeed: 0, windDirection: 0, weatherCode: 0, hourlyRainForecast: [] };
   }
 };

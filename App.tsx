@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Navigation, Search, CloudRain, Wind, AlertTriangle, ShieldCheck, XCircle, Volume2, Settings, Mountain, Zap, Wallet, Menu, X, Thermometer, ArrowUp, Umbrella, Eye, Activity, LocateFixed, Compass, Music, Coffee, Map as MapIcon, Sparkles, ChevronRight, Play, SkipForward, Radio } from 'lucide-react';
+import { MapPin, Navigation, Search, CloudRain, Wind, AlertTriangle, ShieldCheck, XCircle, Volume2, Settings, Mountain, Zap, Wallet, Menu, X, Thermometer, ArrowUp, Umbrella, Eye, Activity, LocateFixed, Compass, Music, Coffee, Map as MapIcon, Sparkles, ChevronRight, Play, SkipForward, Radio, Timer } from 'lucide-react';
 import { LocationData, RouteAnalysis, WeatherData, RouteAlternative } from './types';
 import { searchLocation, getIpLocation, getRouteAlternatives, getWeatherForPoint } from './services/api';
 import { analyzeRouteWithGemini } from './services/geminiService';
@@ -37,6 +37,9 @@ const App: React.FC = () => {
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number>(0);
   const [analysis, setAnalysis] = useState<RouteAnalysis | null>(null);
   const [weatherPoints, setWeatherPoints] = useState<WeatherData[]>([]);
+  
+  // Rain Alert State
+  const [rainAlert, setRainAlert] = useState<{minutes: number, prob: number} | null>(null);
 
   const [activeSearchField, setActiveSearchField] = useState<'start' | 'end' | null>(null);
   
@@ -141,7 +144,6 @@ const App: React.FC = () => {
       drawRoutes(routes, index); // Re-draw to update highlighting
       
       // Re-fetch weather and AI for the selected route
-      // To optimize, we could cache this, but for now we fetch fresh
       const selectedRoute = routes[index];
       await analyzeSelectedRoute(selectedRoute);
   };
@@ -152,6 +154,7 @@ const App: React.FC = () => {
     setLoading(true);
     setRoutes([]);
     setAnalysis(null);
+    setRainAlert(null); // Reset alert
     markersRef.current.forEach(m => mapRef.current.removeLayer(m));
     markersRef.current = [];
 
@@ -178,17 +181,20 @@ const App: React.FC = () => {
     const pointsToSample = 5;
     const step = Math.floor(route.coordinates.length / (pointsToSample + 1));
     const weatherPromises: Promise<WeatherData>[] = [];
-    for (let i = 1; i <= pointsToSample; i++) {
+    for (let i = 0; i <= pointsToSample; i++) { // Start from 0 to capture Start Point
       const coord = route.coordinates[i * step];
-      weatherPromises.push(getWeatherForPoint(coord[1], coord[0]));
+      if (coord) weatherPromises.push(getWeatherForPoint(coord[1], coord[0]));
     }
     const weatherDataList = await Promise.all(weatherPromises);
     setWeatherPoints(weatherDataList);
 
-    // Add Weather Markers
+    // Check for Rain Risk immediately
+    checkForRainRisk(weatherDataList);
+
+    // Add Weather Markers (skip 0 to avoid crowding user marker)
     markersRef.current.forEach(m => mapRef.current.removeLayer(m));
     markersRef.current = [];
-    weatherDataList.forEach(w => {
+    weatherDataList.slice(1).forEach(w => {
         let colorClass = 'bg-emerald-500';
         if (w.rain > 0.5) colorClass = 'bg-blue-500';
         else if (w.windSpeed > 25) colorClass = 'bg-yellow-500';
@@ -205,6 +211,34 @@ const App: React.FC = () => {
     const routeType = route.type === 'scenic' ? 'scenic' : 'fastest';
     const aiResult = await analyzeRouteWithGemini(startLoc?.name || "", endLoc?.name || "", weatherDataList, routeType);
     setAnalysis(aiResult);
+  };
+
+  // --- Rain Alert Logic ---
+  const checkForRainRisk = (points: WeatherData[]) => {
+      if (points.length === 0) return;
+      
+      const startPoint = points[0];
+      const currentHour = new Date().getHours();
+      const currentMinute = new Date().getMinutes();
+      
+      if (!startPoint.hourlyRainForecast) return;
+
+      // Check current hour probability
+      const probNow = startPoint.hourlyRainForecast[currentHour] || 0;
+      // Check next hour probability
+      const probNext = startPoint.hourlyRainForecast[currentHour + 1] || 0;
+
+      // Logic: If prob > 40%, warn user
+      if (probNow > 40) {
+          // It's likely raining now or very soon
+          setRainAlert({ minutes: 0, prob: probNow });
+      } else if (probNext > 40) {
+          // It will likely rain in the next hour
+          const minutesUntilNextHour = 60 - currentMinute;
+          setRainAlert({ minutes: minutesUntilNextHour, prob: probNext });
+      } else {
+          setRainAlert(null);
+      }
   };
 
   // --- Navigation & Music Logic ---
@@ -285,6 +319,28 @@ const App: React.FC = () => {
   return (
     <div className="relative h-screen w-full flex flex-col bg-slate-900 font-sans overflow-hidden">
       <div id="map-container" className="absolute inset-0 z-0" />
+
+      {/* --- RAIN ALERT COMPONENT --- */}
+      {rainAlert && (
+          <div className="absolute top-24 left-4 right-4 z-[60] flex justify-center animate-in slide-in-from-top-10 duration-500">
+              <div className="bg-red-600/90 backdrop-blur-md text-white p-4 rounded-3xl shadow-[0_0_20px_rgba(220,38,38,0.5)] border-2 border-red-400 flex items-center gap-4 max-w-sm">
+                  <div className="bg-white/20 p-3 rounded-full animate-pulse shrink-0">
+                      <CloudRain size={24} strokeWidth={3} />
+                  </div>
+                  <div>
+                      <div className="text-xs font-bold uppercase text-red-100 tracking-wider flex items-center gap-1">
+                          <Timer size={12} /> YAĞMUR ALARMI (%{rainAlert.prob})
+                      </div>
+                      <div className="text-lg font-black leading-tight mt-0.5">
+                          {rainAlert.minutes === 0 ? "Bölgede Yağmur Başladı!" : `${rainAlert.minutes} dakika sonra yağmur başlıyor.`}
+                      </div>
+                      <div className="text-xs text-red-100 mt-1 font-medium">
+                          Islanmadan sığınmak için vaktin var.
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
 
       {/* --- VISOR MODE (Navigation) --- */}
       {isNavigating && currentRoute && (

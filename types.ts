@@ -21,6 +21,7 @@ export interface WeatherData {
   rain: number;
   rainProb: number; // Probability %
   weatherCode: number;
+  hourlyRainForecast?: number[]; // Array of probabilities for the next 24h
 }
 
 export interface RouteSegment {
