@@ -1,4 +1,4 @@
-import { LocationData, WeatherData, RouteAlternative, ElevationStats } from "../types";
+import { LocationData, WeatherData, RouteAlternative, ElevationStats, PoiData } from "../types";
 
 // Primary: Nominatim (OpenStreetMap) for POIs
 // Fallback: Open-Meteo Geocoding for Cities (Reliable)
@@ -217,4 +217,61 @@ export const getWeatherForPoint = async (lat: number, lng: number): Promise<Weat
     console.error("Weather error", e);
     return { lat, lng, temp: 0, rain: 0, rainProb: 0, windSpeed: 0, windDirection: 0, weatherCode: 0, hourlyRainForecast: [] };
   }
+};
+
+// Overpass API for POIs
+export const findPoisAlongRoute = async (coordinates: [number, number][], type: 'fuel' | 'food' | 'sight'): Promise<PoiData[]> => {
+    // 1. Sample the route to avoid creating a massive query. 
+    // Take one point roughly every ~20 points from OSRM result (assuming dense geometry)
+    // OSRM usually returns plenty of points.
+    
+    if (!coordinates || coordinates.length === 0) return [];
+
+    const sampleRate = Math.max(10, Math.floor(coordinates.length / 15)); // Target ~15 search bubbles
+    const sampledCoords = coordinates.filter((_, i) => i % sampleRate === 0);
+    
+    // Add endpoint to ensure we search near destination
+    sampledCoords.push(coordinates[coordinates.length - 1]);
+
+    // 2. Build Overpass Query
+    // Query format: (node[amenity=fuel](around:5000,lat,lon); ... ); out;
+    // Radius: 3000 meters (3km)
+    
+    let filters = '';
+    if (type === 'fuel') filters = '["amenity"="fuel"]';
+    else if (type === 'food') filters = '["amenity"~"restaurant|cafe|fast_food"]';
+    else if (type === 'sight') filters = '["tourism"~"viewpoint|attraction|museum"]["name"]';
+
+    const radius = 3000;
+    let queryBody = '';
+    
+    sampledCoords.forEach(c => {
+        // Overpass uses (lat, lon), OSRM is [lng, lat]
+        queryBody += `node${filters}(around:${radius},${c[1]},${c[0]});`;
+    });
+
+    const query = `[out:json][timeout:25];(${queryBody});out body 20;>;out skel qt;`; // Limit to 20 results total for performance
+
+    try {
+        const res = await fetch('https://overpass-api.de/api/interpreter', {
+            method: 'POST',
+            body: query
+        });
+
+        if (!res.ok) throw new Error("Overpass API error");
+        
+        const data = await res.json();
+        
+        return data.elements.map((el: any) => ({
+            id: el.id,
+            lat: el.lat,
+            lng: el.lon,
+            name: el.tags.name || (type === 'fuel' ? 'Akaryakıt İstasyonu' : 'Mekan'),
+            type: type
+        }));
+
+    } catch (e) {
+        console.warn("POI Fetch failed", e);
+        return [];
+    }
 };

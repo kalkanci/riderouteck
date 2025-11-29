@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Navigation, Search, CloudRain, X, Mountain, LocateFixed, Coffee, ArrowUpRight, RefreshCw, ThermometerSun, Wind, AlertTriangle } from 'lucide-react';
-import { LocationData, RouteAnalysis, WeatherData, RouteAlternative, ElevationStats } from './types';
-import { searchLocation, getIpLocation, getRouteAlternatives, getWeatherForPoint, getElevationProfile } from './services/api';
+import { MapPin, Navigation, Search, CloudRain, X, Mountain, LocateFixed, Coffee, ArrowUpRight, RefreshCw, ThermometerSun, Wind, AlertTriangle, Fuel, Camera, Utensils } from 'lucide-react';
+import { LocationData, RouteAnalysis, WeatherData, RouteAlternative, ElevationStats, PoiData } from './types';
+import { searchLocation, getIpLocation, getRouteAlternatives, getWeatherForPoint, getElevationProfile, findPoisAlongRoute } from './services/api';
 import { analyzeRouteStatic } from './services/geminiService'; // Renamed import, same file structure
 
 // Helper: Haversine distance
@@ -74,7 +74,9 @@ const App: React.FC = () => {
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number>(0);
   const [analysis, setAnalysis] = useState<RouteAnalysis | null>(null);
   const [weatherPoints, setWeatherPoints] = useState<WeatherData[]>([]);
-  
+  const [pois, setPois] = useState<PoiData[]>([]);
+  const [poiLoading, setPoiLoading] = useState<string | null>(null);
+
   // Rain Alert
   const [rainAlert, setRainAlert] = useState<{minutes: number, prob: number} | null>(null);
   const [activeSearchField, setActiveSearchField] = useState<'start' | 'end' | null>(null);
@@ -96,6 +98,7 @@ const App: React.FC = () => {
   const mapRef = useRef<any>(null); 
   const routeLayersRef = useRef<any[]>([]); 
   const markersRef = useRef<any[]>([]); 
+  const poiMarkersRef = useRef<any[]>([]);
   const userMarkerRef = useRef<any>(null); 
   const wakeLockRef = useRef<any>(null);
   const watchIdRef = useRef<number | null>(null);
@@ -265,9 +268,13 @@ const App: React.FC = () => {
   const calculateRoutes = async () => {
     if (!startLoc || !endLoc) return;
     setLoading(true);
-    setRoutes([]); setAnalysis(null); setRainAlert(null); setSheetMode('mid');
+    setRoutes([]); setAnalysis(null); setRainAlert(null); setSheetMode('mid'); setPois([]);
+    
+    // Clear Markers
     markersRef.current.forEach(m => mapRef.current.removeLayer(m));
     markersRef.current = [];
+    poiMarkersRef.current.forEach(m => mapRef.current.removeLayer(m));
+    poiMarkersRef.current = [];
 
     const alternatives = await getRouteAlternatives(startLoc, endLoc);
     
@@ -332,6 +339,46 @@ const App: React.FC = () => {
       setRainAlert(probNow > 40 ? { minutes: 0, prob: probNow } : null);
   };
 
+  // --- POI Search Logic ---
+  const handlePoiSearch = async (type: 'fuel' | 'food' | 'sight') => {
+      if (!routes[selectedRouteIndex]) return;
+      
+      setPoiLoading(type);
+      // Clear existing POIs first
+      poiMarkersRef.current.forEach(m => mapRef.current.removeLayer(m));
+      poiMarkersRef.current = [];
+      setPois([]);
+
+      const results = await findPoisAlongRoute(routes[selectedRouteIndex].coordinates, type);
+      setPois(results);
+      setPoiLoading(null);
+
+      // Render markers
+      results.forEach(poi => {
+          let bgColor = 'bg-yellow-500';
+          let Icon = Fuel;
+          
+          if (poi.type === 'food') { bgColor = 'bg-orange-500'; Icon = Utensils; }
+          else if (poi.type === 'sight') { bgColor = 'bg-purple-500'; Icon = Camera; }
+
+          // Convert lucide icon to SVG string manually for Leaflet DivIcon
+          const iconHtml = `<div class="${bgColor} w-8 h-8 rounded-full flex items-center justify-center text-white shadow-xl border-2 border-white transform hover:scale-110 transition-transform">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                ${type === 'fuel' ? '<path d="M3 22v-8a2 2 0 0 1 2-2h2.5a2 2 0 0 1 2 2v8"></path><path d="M5 2h5"></path><path d="M12 2v20"></path><path d="M15 10v-5a2 2 0 0 1 2-2h3"></path>' : ''}
+                ${type === 'food' ? '<path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3"></path>' : ''}
+                ${type === 'sight' ? '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle>' : ''}
+            </svg>
+          </div>`;
+
+          const marker = window.L.marker([poi.lat, poi.lng], {
+              icon: window.L.divIcon({ className: '', html: iconHtml, iconSize: [32, 32], iconAnchor: [16, 32] })
+          }).addTo(mapRef.current);
+          
+          marker.bindPopup(`<div class="font-bold text-sm text-black">${poi.name}</div>`, { closeButton: false, offset: [0, -32] });
+          poiMarkersRef.current.push(marker);
+      });
+  };
+
   // --- Search Logic ---
   useEffect(() => {
     const query = activeSearchField === 'start' ? startQuery : endQuery;
@@ -391,7 +438,7 @@ const App: React.FC = () => {
   
   const sheetHeightClass = 
     sheetMode === 'mini' ? 'h-[180px]' : 
-    sheetMode === 'mid' ? 'h-[45dvh]' : 
+    sheetMode === 'mid' ? 'h-[55dvh]' : // Increased slightly to fit POI buttons
     'h-[90dvh]';
 
   return (
@@ -517,7 +564,7 @@ const App: React.FC = () => {
             {/* Locate Me FAB */}
             <button 
                onClick={handleRecenter}
-               className={`absolute right-4 z-40 bg-black/60 backdrop-blur-xl border border-white/10 w-12 h-12 rounded-full flex items-center justify-center shadow-2xl text-white active:scale-90 transition-all duration-300 ${sheetMode === 'full' ? 'bottom-[92dvh] opacity-0' : sheetMode === 'mid' ? 'bottom-[47dvh]' : 'bottom-[200px]'}`}
+               className={`absolute right-4 z-40 bg-black/60 backdrop-blur-xl border border-white/10 w-12 h-12 rounded-full flex items-center justify-center shadow-2xl text-white active:scale-90 transition-all duration-300 ${sheetMode === 'full' ? 'bottom-[92dvh] opacity-0' : sheetMode === 'mid' ? 'bottom-[57dvh]' : 'bottom-[200px]'}`}
             >
                <LocateFixed size={20} className={isRefreshing ? 'animate-spin' : ''} />
             </button>
@@ -570,6 +617,19 @@ const App: React.FC = () => {
                         <div className="pb-28 space-y-3">
                             {activeTab === 'general' && (
                                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                    {/* POI Search Buttons */}
+                                    <div className="flex gap-2 mb-4 overflow-x-auto no-scrollbar">
+                                        <button onClick={() => handlePoiSearch('fuel')} disabled={poiLoading !== null} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border font-bold text-xs transition-all ${poiLoading==='fuel'?'bg-yellow-500/20 border-yellow-500 text-yellow-500':'bg-white/5 border-white/5 hover:bg-white/10 text-white/70'}`}>
+                                            <Fuel size={14} className={poiLoading==='fuel'?'animate-pulse':''} /> Benzin
+                                        </button>
+                                        <button onClick={() => handlePoiSearch('food')} disabled={poiLoading !== null} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border font-bold text-xs transition-all ${poiLoading==='food'?'bg-orange-500/20 border-orange-500 text-orange-500':'bg-white/5 border-white/5 hover:bg-white/10 text-white/70'}`}>
+                                            <Utensils size={14} className={poiLoading==='food'?'animate-pulse':''} /> Yemek
+                                        </button>
+                                        <button onClick={() => handlePoiSearch('sight')} disabled={poiLoading !== null} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border font-bold text-xs transition-all ${poiLoading==='sight'?'bg-purple-500/20 border-purple-500 text-purple-500':'bg-white/5 border-white/5 hover:bg-white/10 text-white/70'}`}>
+                                            <Camera size={14} className={poiLoading==='sight'?'animate-pulse':''} /> Manzara
+                                        </button>
+                                    </div>
+
                                     <div className="bg-gradient-to-br from-white/10 to-white/5 p-5 rounded-3xl border border-white/5">
                                         <div className="flex items-center gap-2 text-[10px] text-blue-300 mb-1 uppercase font-bold tracking-wider"><Mountain size={12}/> Yükselti Analizi</div>
                                         {analysis.elevationStats && <ElevationChart stats={analysis.elevationStats} />}

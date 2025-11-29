@@ -25,6 +25,14 @@ export interface WeatherData {
   hourlyRainForecast?: number[]; // Array of probabilities for the next 24h
 }
 
+export interface PoiData {
+  id: number;
+  lat: number;
+  lng: number;
+  name: string;
+  type: 'fuel' | 'food' | 'sight';
+}
+
 export interface RouteSegment {
   name: string; // e.g. "İstanbul Çıkışı - Tem Otoyolu"
   description: string; // "Yoğun trafik, dikkatli şerit değişimi."
