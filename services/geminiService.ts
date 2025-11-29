@@ -8,18 +8,14 @@ export const analyzeRouteWithGemini = async (
   routeType: 'fastest' | 'scenic' | 'safe'
 ): Promise<RouteAnalysis> => {
   
-  // 1. Safe API Key Access
-  let apiKey = "";
-  try {
-    if (typeof process !== "undefined" && process.env && process.env.API_KEY) {
-      apiKey = process.env.API_KEY;
-    }
-  } catch (e) {
-    console.warn("Environment variable access error:", e);
-  }
+  // 1. Direct API Key Access
+  // Bundlers often replace process.env.API_KEY directly during build.
+  // Complex checks (typeof process) can prevent this replacement.
+  const apiKey = process.env.API_KEY;
 
   // 2. Fallback
   if (!apiKey) {
+    console.warn("API Key not found in process.env");
     return {
       riskLevel: "Düşük",
       summary: "API Anahtarı eksik. Gelişmiş analiz yapılamıyor.",
