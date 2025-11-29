@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Navigation, Search, CloudRain, Wind, AlertTriangle, ShieldCheck, XCircle, Volume2, Settings, Mountain, Zap, Wallet, Menu, X, Thermometer, ArrowUp, Umbrella, Eye, Activity, LocateFixed, Compass, Music, Coffee, Map as MapIcon, Sparkles, ChevronRight, Play, SkipForward, Radio, Timer } from 'lucide-react';
-import { LocationData, RouteAnalysis, WeatherData, RouteAlternative } from './types';
-import { searchLocation, getIpLocation, getRouteAlternatives, getWeatherForPoint } from './services/api';
+import { MapPin, Navigation, Search, CloudRain, Wind, AlertTriangle, ShieldCheck, XCircle, Volume2, Settings, Mountain, Zap, Wallet, Menu, X, Thermometer, ArrowUp, Umbrella, Eye, Activity, LocateFixed, Compass, Music, Coffee, Map as MapIcon, Sparkles, ChevronRight, Play, SkipForward, Radio, Timer, ChevronUp, ChevronDown, ChevronsUp, Store, Fuel, Utensils } from 'lucide-react';
+import { LocationData, RouteAnalysis, WeatherData, RouteAlternative, ElevationStats } from './types';
+import { searchLocation, getIpLocation, getRouteAlternatives, getWeatherForPoint, getElevationProfile } from './services/api';
 import { analyzeRouteWithGemini } from './services/geminiService';
 
 // Helper: Haversine distance
@@ -21,6 +21,39 @@ const calculateWindChill = (temp: number, windSpeed: number) => {
     const v = ridingSpeed + windSpeed; 
     const chill = 13.12 + (0.6215 * temp) - (11.37 * Math.pow(v, 0.16)) + (0.3965 * temp * Math.pow(v, 0.16));
     return Math.round(chill);
+};
+
+// Elevation Chart Component (Sparkline style)
+const ElevationChart: React.FC<{ stats: ElevationStats }> = ({ stats }) => {
+    const height = 40;
+    const width = 100; // percent
+    const points = stats.points;
+    const min = Math.min(...points);
+    const max = Math.max(...points);
+    const range = max - min || 1;
+    
+    // Generate SVG path
+    const pathD = points.map((p, i) => {
+        const x = (i / (points.length - 1)) * 100;
+        const y = height - ((p - min) / range) * height;
+        return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+    }).join(' ');
+
+    return (
+        <div className="w-full mt-2">
+            <div className="flex justify-between text-[10px] text-slate-400 font-bold mb-1 px-1">
+                <span>{Math.round(min)}m</span>
+                <span className="text-blue-300">Tırmanış: +{Math.round(stats.gain)}m</span>
+                <span>{Math.round(max)}m</span>
+            </div>
+            <div className="relative h-10 w-full bg-slate-800/50 rounded-lg overflow-hidden border border-white/5">
+                <svg className="w-full h-full" preserveAspectRatio="none" viewBox={`0 0 100 ${height}`}>
+                    <path d={`${pathD} L 100 ${height} L 0 ${height} Z`} fill="rgba(59, 130, 246, 0.2)" stroke="none" />
+                    <path d={pathD} fill="none" stroke="#3b82f6" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+                </svg>
+            </div>
+        </div>
+    );
 };
 
 const App: React.FC = () => {
@@ -49,8 +82,9 @@ const App: React.FC = () => {
   const [heading, setHeading] = useState(0);
   const [showMusicPanel, setShowMusicPanel] = useState(false);
 
-  // Analysis Tabs
+  // Analysis Tabs & Sheet State
   const [activeTab, setActiveTab] = useState<'general' | 'segments' | 'stops'>('general');
+  const [sheetMode, setSheetMode] = useState<'mini' | 'mid' | 'full'>('mid');
 
   // --- Refs ---
   const mapRef = useRef<any>(null); 
@@ -59,6 +93,7 @@ const App: React.FC = () => {
   const userMarkerRef = useRef<any>(null); 
   const wakeLockRef = useRef<any>(null);
   const watchIdRef = useRef<number | null>(null);
+  const touchStartRef = useRef<number>(0);
 
   // --- Initialization ---
   useEffect(() => {
@@ -161,6 +196,7 @@ const App: React.FC = () => {
     setRoutes([]);
     setAnalysis(null);
     setRainAlert(null); // Reset alert
+    setSheetMode('mid'); // Reset sheet to medium height
     markersRef.current.forEach(m => mapRef.current.removeLayer(m));
     markersRef.current = [];
 
@@ -191,7 +227,13 @@ const App: React.FC = () => {
       const coord = route.coordinates[i * step];
       if (coord) weatherPromises.push(getWeatherForPoint(coord[1], coord[0]));
     }
-    const weatherDataList = await Promise.all(weatherPromises);
+
+    // Parallel Fetch: Weather + Elevation
+    const [weatherDataList, elevationStats] = await Promise.all([
+        Promise.all(weatherPromises),
+        getElevationProfile(route.coordinates)
+    ]);
+
     setWeatherPoints(weatherDataList);
 
     // Check for Rain Risk immediately
@@ -213,9 +255,15 @@ const App: React.FC = () => {
         markersRef.current.push(window.L.marker([w.lat, w.lng], { icon }).addTo(mapRef.current));
     });
 
-    // Gemini Analysis
+    // Gemini Analysis (Now includes Elevation)
     const routeType = route.type === 'scenic' ? 'scenic' : 'fastest';
-    const aiResult = await analyzeRouteWithGemini(startLoc?.name || "", endLoc?.name || "", weatherDataList, routeType);
+    const aiResult = await analyzeRouteWithGemini(
+        startLoc?.name || "", 
+        endLoc?.name || "", 
+        weatherDataList, 
+        routeType,
+        elevationStats || undefined
+    );
     setAnalysis(aiResult);
   };
 
@@ -336,10 +384,46 @@ const App: React.FC = () => {
     if(isNav) userMarkerRef.current.setZIndexOffset(9999);
   };
 
+  // --- Gestures for Bottom Sheet ---
+  const handleTouchStart = (e: React.TouchEvent) => {
+      touchStartRef.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+      const touchEnd = e.changedTouches[0].clientY;
+      const diff = touchStartRef.current - touchEnd;
+
+      // Swipe Up (Expand)
+      if (diff > 50) {
+          if (sheetMode === 'mini') setSheetMode('mid');
+          else if (sheetMode === 'mid') setSheetMode('full');
+      }
+      // Swipe Down (Collapse)
+      else if (diff < -50) {
+          if (sheetMode === 'full') setSheetMode('mid');
+          else if (sheetMode === 'mid') setSheetMode('mini');
+      }
+  };
+
   // Helper values
   const currentAvgWeather = weatherPoints.length > 0 ? weatherPoints[0] : null; 
   const windChill = currentAvgWeather ? calculateWindChill(currentAvgWeather.temp, currentAvgWeather.windSpeed) : 0;
   const currentRoute = routes[selectedRouteIndex];
+  
+  // Height classes based on state
+  const sheetHeightClass = 
+    sheetMode === 'mini' ? 'h-[240px]' : 
+    sheetMode === 'mid' ? 'h-[50dvh]' : 
+    'h-[92dvh]';
+    
+  // Render POI Icon based on type
+  const renderPoiIcon = (type?: string) => {
+      if (!type) return <MapPin size={18} />;
+      if (type.includes('fuel')) return <Fuel size={18} className="text-yellow-400"/>;
+      if (type.includes('restaurant') || type.includes('cafe')) return <Utensils size={18} className="text-orange-400"/>;
+      if (type.includes('market') || type.includes('shop')) return <Store size={18} className="text-blue-400"/>;
+      return <MapPin size={18} />;
+  };
 
   return (
     // Use [100dvh] for dynamic viewport height to fix mobile browser scroll issues
@@ -442,16 +526,21 @@ const App: React.FC = () => {
                     </div>
                     <div className="relative group">
                         <div className="absolute left-4 top-3.5 text-red-400"><Search size={18} /></div>
-                        <input type="text" placeholder="Nereye?" className="w-full bg-white/5 text-white p-3 pl-11 rounded-2xl border-none outline-none focus:ring-1 focus:ring-red-500 transition-all placeholder:text-slate-500"
+                        <input type="text" placeholder="Nereye? (Benzinlik, Köfteci, Şehir...)" className="w-full bg-white/5 text-white p-3 pl-11 rounded-2xl border-none outline-none focus:ring-1 focus:ring-red-500 transition-all placeholder:text-slate-500"
                         value={endQuery} onChange={(e) => setEndQuery(e.target.value)} onFocus={() => setActiveSearchField('end')} />
                     </div>
                     {/* Search Results Dropdown */}
                     {activeSearchField && searchResults.length > 0 && (
                         <div className="bg-slate-800 rounded-xl mt-1 overflow-hidden max-h-[35vh] overflow-y-auto border border-white/10 shadow-2xl">
                             {searchResults.map((res, idx) => (
-                                <div key={idx} className="p-3 hover:bg-white/10 cursor-pointer text-sm flex flex-col border-b border-white/5 last:border-0" onClick={() => handleSelectLocation(res)}>
-                                    <span className="font-bold text-white">{res.name}</span>
-                                    {res.admin1 && <span className="text-slate-400 text-xs">{res.admin1}</span>}
+                                <div key={idx} className="p-3 hover:bg-white/10 cursor-pointer text-sm flex items-center gap-3 border-b border-white/5 last:border-0" onClick={() => handleSelectLocation(res)}>
+                                    <div className="bg-white/5 p-2 rounded-lg text-slate-300">
+                                        {renderPoiIcon(res.type)}
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="font-bold text-white">{res.name}</span>
+                                        {res.admin1 && <span className="text-slate-400 text-xs">{res.admin1}</span>}
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -469,83 +558,114 @@ const App: React.FC = () => {
                 )}
             </div>
 
-            {/* Locate Me FAB */}
+            {/* Locate Me FAB - Positioned to move with sheet */}
             <button 
                onClick={handleRecenter}
-               className="absolute right-4 top-[240px] z-40 bg-slate-900/80 backdrop-blur-xl border border-white/10 p-3 rounded-2xl shadow-2xl text-blue-500 active:scale-95 transition-all hover:bg-slate-800 hover:text-white"
+               className={`absolute right-4 z-40 bg-slate-900/80 backdrop-blur-xl border border-white/10 p-3 rounded-2xl shadow-2xl text-blue-500 active:scale-95 transition-all duration-300 hover:bg-slate-800 hover:text-white ${sheetMode === 'full' ? 'bottom-[93dvh] opacity-0' : sheetMode === 'mid' ? 'bottom-[52dvh]' : 'bottom-[250px]'}`}
                aria-label="Konumumu Bul"
             >
                <LocateFixed size={24} />
             </button>
 
             {/* --- BOTTOM SHEET: ROUTE SELECTION & ANALYSIS --- */}
-            {/* Redesigned to be anchored at the bottom with proper scrolling */}
+            {/* Interactive, draggable, 3-state bottom sheet */}
             {routes.length > 0 && analysis && (
-                <div className="absolute bottom-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-xl border-t border-white/10 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] flex flex-col max-h-[75dvh] animate-in slide-in-from-bottom duration-300">
+                <div 
+                    className={`absolute bottom-0 left-0 right-0 z-50 bg-slate-950/80 backdrop-blur-2xl border-t border-white/10 rounded-t-[2rem] shadow-[0_-10px_60px_rgba(0,0,0,0.8)] flex flex-col transition-[height] duration-500 cubic-bezier(0.32, 0.72, 0, 1) ${sheetHeightClass}`}
+                >
                     
                     {/* Drag Handle & Header Area */}
-                    <div className="flex-none pt-3 pb-1 w-full flex justify-center" onClick={() => {/* Optional: Expand/Collapse logic could go here */}}>
-                        <div className="w-12 h-1.5 bg-white/20 rounded-full" />
+                    <div 
+                        className="flex-none pt-3 pb-2 w-full flex flex-col items-center justify-center cursor-grab active:cursor-grabbing hover:bg-white/5 transition-colors rounded-t-[2rem]"
+                        onTouchStart={handleTouchStart}
+                        onTouchEnd={handleTouchEnd}
+                        onClick={() => setSheetMode(prev => prev === 'mid' ? 'full' : prev === 'full' ? 'mini' : 'mid')}
+                    >
+                        <div className="w-14 h-1.5 bg-white/20 rounded-full mb-1" />
+                        {/* Dynamic Chevron based on state */}
+                        <div className="text-white/30 transition-transform duration-300">
+                             {sheetMode === 'mini' && <ChevronsUp size={16} className="animate-bounce" />}
+                             {sheetMode === 'mid' && <div className="h-4" />} 
+                             {sheetMode === 'full' && <ChevronDown size={16} />}
+                        </div>
                     </div>
 
-                    {/* Route Switcher (Horizontal Scroll) */}
-                    <div className="flex-none flex p-3 gap-3 overflow-x-auto no-scrollbar snap-x">
+                    {/* Route Switcher (Horizontal Scroll) - Always visible */}
+                    <div className="flex-none flex p-4 pt-1 gap-3 overflow-x-auto no-scrollbar snap-x z-20">
                         {routes.map((r, idx) => (
-                            <button key={idx} onClick={() => handleRouteSelect(idx)} 
-                                className={`flex-none snap-center min-w-[130px] py-3 px-4 rounded-2xl border transition-all flex flex-col items-center justify-center gap-1 relative overflow-hidden ${selectedRouteIndex === idx ? 'bg-white/10 border-white/20 shadow-lg' : 'border-transparent opacity-60 hover:opacity-80'}`}>
-                                <div className="text-[10px] font-bold uppercase tracking-wider z-10" style={{ color: r.color }}>{r.name}</div>
-                                <div className="text-xl font-black text-white z-10">{(r.distance / 1000).toFixed(0)} km</div>
-                                <div className="text-xs text-slate-400 z-10">{Math.floor(r.duration / 60)} dk</div>
-                                {selectedRouteIndex === idx && <div className="absolute inset-0 bg-gradient-to-t from-white/5 to-transparent z-0"/>}
+                            <button key={idx} onClick={(e) => { e.stopPropagation(); handleRouteSelect(idx); }} 
+                                className={`flex-none snap-center min-w-[140px] h-[80px] px-4 rounded-2xl border transition-all duration-300 flex flex-col items-center justify-center gap-1 relative overflow-hidden group active:scale-95 ${selectedRouteIndex === idx ? 'bg-slate-800/80 border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.3)]' : 'bg-slate-900/50 border-white/5 opacity-60 hover:opacity-100'}`}>
+                                
+                                {selectedRouteIndex === idx && <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/20 via-transparent to-transparent z-0"/>}
+                                
+                                <div className="text-[10px] font-bold uppercase tracking-widest z-10" style={{ color: r.color }}>{r.name}</div>
+                                <div className="flex items-baseline gap-1 z-10">
+                                    <div className="text-xl font-black text-white">{(r.distance / 1000).toFixed(0)}</div>
+                                    <div className="text-xs font-bold text-slate-400">km</div>
+                                </div>
+                                <div className="text-[10px] text-slate-400 z-10 font-medium bg-black/30 px-2 py-0.5 rounded-full">{Math.floor(r.duration / 60)} dk</div>
                             </button>
                         ))}
                     </div>
 
-                    <div className="flex-none h-px bg-white/10 w-full mb-1" />
+                    <div className="flex-none h-px bg-gradient-to-r from-transparent via-white/10 to-transparent w-full mb-1" />
 
-                    {/* Scrollable Content Area - Flex Grow */}
-                    <div className="flex-1 overflow-y-auto min-h-0 p-4 pt-2">
-                        <div className="flex justify-between items-start mb-4">
-                             <h2 className="text-white font-bold text-xl leading-tight w-3/4">{analysis.summary.split('.')[0]}.</h2>
-                             <div className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase border tracking-wider ${analysis.riskLevel === 'Düşük' ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400' : 'border-red-500/50 bg-red-500/10 text-red-400'}`}>
+                    {/* Scrollable Content Area - Only visible in Mid/Full mode */}
+                    <div className={`flex-1 overflow-y-auto min-h-0 p-5 pt-2 transition-opacity duration-300 ${sheetMode === 'mini' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                        <div className="flex justify-between items-start mb-5">
+                             <h2 className="text-white font-bold text-2xl leading-tight w-3/4 tracking-tight drop-shadow-md">{analysis.summary.split('.')[0]}.</h2>
+                             <div className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase border tracking-wider shadow-lg ${analysis.riskLevel === 'Düşük' ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-400 shadow-emerald-900/20' : 'border-red-500/50 bg-red-500/20 text-red-400 shadow-red-900/20'}`}>
                                 {analysis.riskLevel} Risk
                              </div>
                         </div>
 
-                        {/* Mini Tabs */}
-                        <div className="flex bg-black/40 p-1 rounded-xl mb-4 sticky top-0 z-10 backdrop-blur-md border border-white/5">
-                            <button onClick={() => setActiveTab('general')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'general' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>Özet</button>
-                            <button onClick={() => setActiveTab('segments')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'segments' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>Yol</button>
-                            <button onClick={() => setActiveTab('stops')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'stops' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>Mola</button>
+                        {/* Enhanced Tabs */}
+                        <div className="flex bg-black/40 p-1.5 rounded-2xl mb-6 sticky top-0 z-10 backdrop-blur-xl border border-white/10 shadow-lg">
+                            {(['general', 'segments', 'stops'] as const).map((tab) => (
+                                <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 capitalize ${activeTab === tab ? 'bg-slate-700 text-white shadow-md ring-1 ring-white/10' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>
+                                    {tab === 'general' ? 'Özet' : tab === 'segments' ? 'Yol' : 'Mola'}
+                                </button>
+                            ))}
                         </div>
 
                         {/* Tab Content */}
-                        <div className="space-y-4 pb-4">
+                        <div className="space-y-4 pb-20">
                             {activeTab === 'general' && (
-                                <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-bottom-2">
-                                    <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
-                                        <div className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1 mb-1"><Thermometer size={10}/> Hissedilen</div>
-                                        <div className="text-xl font-bold text-white">{windChill}°C</div>
+                                <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                    {/* Elevation Chart - New! */}
+                                    {analysis.elevationStats && (
+                                        <div className="col-span-2 bg-gradient-to-br from-slate-800 to-slate-900 p-4 rounded-2xl border border-white/5 shadow-lg">
+                                            <div className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1"><Mountain size={12} className="text-blue-400"/> Yükselti Profili</div>
+                                            <ElevationChart stats={analysis.elevationStats} />
+                                        </div>
+                                    )}
+
+                                    <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-4 rounded-2xl border border-white/5 shadow-lg">
+                                        <div className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1 mb-2"><Thermometer size={12} className="text-orange-400"/> Hissedilen</div>
+                                        <div className="text-2xl font-black text-white tracking-tight">{windChill}°C</div>
                                     </div>
-                                    <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
-                                        <div className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1 mb-1"><Music size={10}/> Vibe</div>
-                                        <div className="text-xs font-bold text-purple-300 truncate leading-6">{analysis.playlistVibe}</div>
+                                    <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-4 rounded-2xl border border-white/5 shadow-lg">
+                                        <div className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1 mb-2"><Music size={12} className="text-purple-400"/> Vibe</div>
+                                        <div className="text-sm font-bold text-purple-200 truncate leading-relaxed">{analysis.playlistVibe}</div>
                                     </div>
-                                    <div className="col-span-2 bg-blue-500/10 border-l-4 border-blue-500 p-3 rounded-r-xl">
-                                        <div className="text-[10px] text-blue-300 font-bold uppercase mb-1">Eğitmen Notu</div>
-                                        <div className="text-sm text-slate-200 italic leading-relaxed">
+                                    <div className="col-span-2 bg-gradient-to-r from-blue-900/30 to-slate-900 border-l-4 border-blue-500 p-4 rounded-r-2xl">
+                                        <div className="text-[10px] text-blue-400 font-bold uppercase mb-1 flex items-center gap-2"><ShieldCheck size={12}/> Eğitmen Notu</div>
+                                        <div className="text-sm text-slate-200 italic leading-relaxed font-medium">
                                             "{analysis.gearAdvice}"
                                         </div>
                                     </div>
                                 </div>
                             )}
                              {activeTab === 'segments' && (
-                                <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                     {analysis.segments.map((seg, i) => (
-                                        <div key={i} className="bg-white/5 p-3 rounded-xl border border-white/5 relative overflow-hidden">
-                                            <div className={`absolute left-0 top-0 bottom-0 w-1 ${seg.risk === 'Yüksek' ? 'bg-red-500' : seg.risk === 'Orta' ? 'bg-yellow-500' : 'bg-emerald-500'}`}/>
-                                            <div className="pl-3">
-                                                <div className="flex justify-between mb-1"><span className="text-sm font-bold text-white">{seg.name}</span> <span className="text-[10px] text-slate-400 border border-white/10 px-1.5 py-0.5 rounded">{seg.risk}</span></div>
+                                        <div key={i} className="bg-slate-800/40 p-4 rounded-2xl border border-white/5 relative overflow-hidden group">
+                                            <div className={`absolute left-0 top-0 bottom-0 w-1.5 transition-colors ${seg.risk === 'Yüksek' ? 'bg-red-500' : seg.risk === 'Orta' ? 'bg-yellow-500' : 'bg-emerald-500'}`}/>
+                                            <div className="pl-4">
+                                                <div className="flex justify-between mb-2 items-center">
+                                                    <span className="text-sm font-bold text-white group-hover:text-blue-300 transition-colors">{seg.name}</span> 
+                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${seg.risk === 'Yüksek' ? 'border-red-500/30 text-red-400' : 'border-emerald-500/30 text-emerald-400'}`}>{seg.risk}</span>
+                                                </div>
                                                 <p className="text-xs text-slate-400 leading-relaxed">{seg.description}</p>
                                             </div>
                                         </div>
@@ -553,16 +673,16 @@ const App: React.FC = () => {
                                 </div>
                              )}
                              {activeTab === 'stops' && (
-                                <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                     {analysis.pitStops.map((stop, i) => (
-                                        <div key={i} className="bg-white/5 p-3 rounded-xl border border-white/5 flex gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center shrink-0 text-orange-400">
+                                        <div key={i} className="bg-slate-800/40 p-4 rounded-2xl border border-white/5 flex gap-4 items-start">
+                                            <div className="w-10 h-10 rounded-full bg-orange-500/10 border border-orange-500/20 flex items-center justify-center shrink-0 text-orange-400 shadow-lg shadow-orange-900/20">
                                                 <Coffee size={18} />
                                             </div>
                                             <div>
                                                 <div className="text-sm font-bold text-white">{stop.type}</div>
-                                                <p className="text-xs text-slate-400 mt-0.5">{stop.locationDescription}</p>
-                                                <p className="text-[10px] text-slate-500 mt-1 italic">{stop.reason}</p>
+                                                <p className="text-xs text-slate-400 mt-1 font-medium">{stop.locationDescription}</p>
+                                                <p className="text-[11px] text-slate-500 mt-1.5 italic border-l-2 border-slate-700 pl-2">"{stop.reason}"</p>
                                             </div>
                                         </div>
                                     ))}
@@ -571,10 +691,10 @@ const App: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Fixed Footer Button - with safe area padding */}
-                    <div className="flex-none p-4 pt-2 pb-8 bg-slate-900/80 border-t border-white/5 backdrop-blur-lg z-20">
-                        <button onClick={startNavigation} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl font-black text-lg shadow-lg flex items-center justify-center gap-2 transform active:scale-[0.98] transition-all">
-                            <Navigation size={22} fill="currentColor" /> SÜRÜŞÜ BAŞLAT
+                    {/* Fixed Footer Button - Always visible, adapts padding based on safe area */}
+                    <div className="flex-none p-4 pt-3 pb-8 bg-slate-900/90 border-t border-white/5 backdrop-blur-xl z-30">
+                        <button onClick={startNavigation} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl font-black text-lg shadow-[0_4px_20px_rgba(37,99,235,0.4)] flex items-center justify-center gap-3 transform active:scale-[0.98] transition-all border border-white/10 group">
+                            <Navigation size={22} className="group-hover:rotate-45 transition-transform duration-300" fill="currentColor" /> SÜRÜŞÜ BAŞLAT
                         </button>
                     </div>
                 </div>

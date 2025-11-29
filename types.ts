@@ -10,6 +10,7 @@ export interface LocationData {
   lat: number;
   lng: number;
   admin1?: string; // Province/State
+  type?: string; // Type of location (city, amenity, etc.)
 }
 
 export interface WeatherData {
@@ -36,6 +37,14 @@ export interface PitStop {
   reason: string; // "Sıcak bir kahve ve motoru dinlendirmek için ideal."
 }
 
+export interface ElevationStats {
+  min: number;
+  max: number;
+  avg: number;
+  gain: number; // Total ascent
+  points: number[]; // Array of heights for graphing
+}
+
 export interface RouteAnalysis {
   riskLevel: "Düşük" | "Orta" | "Yüksek";
   summary: string;
@@ -48,6 +57,7 @@ export interface RouteAnalysis {
   segments: RouteSegment[];
   pitStops: PitStop[];
   playlistVibe: string;
+  elevationStats?: ElevationStats; // Added structured data
 }
 
 export interface RouteAlternative {
