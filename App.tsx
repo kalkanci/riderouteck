@@ -65,7 +65,8 @@ const App: React.FC = () => {
     if (!mapRef.current && window.L) {
       mapRef.current = window.L.map('map-container', {
         zoomControl: false,
-        attributionControl: false
+        attributionControl: false,
+        zoomSnap: 0.5 // Smoother zoom
       }).setView([39.9334, 32.8597], 6);
 
       window.L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -305,6 +306,25 @@ const App: React.FC = () => {
     setSearchResults([]); setActiveSearchField(null);
   };
 
+  const handleRecenter = () => {
+    if (!mapRef.current) return;
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            const { latitude, longitude } = pos.coords;
+            updateUserMarker(latitude, longitude, 0);
+            mapRef.current.flyTo([latitude, longitude], 15, { animate: true, duration: 1.5 });
+        },
+        (err) => {
+            console.error("Locate error", err);
+            // Fallback if permission denied or unavailable
+            if (startLoc) {
+                 mapRef.current.flyTo([startLoc.lat, startLoc.lng], 15, { animate: true });
+            }
+        },
+        { enableHighAccuracy: true }
+    );
+  };
+
   const updateUserMarker = (lat: number, lng: number, headingVal: number, isNav: boolean = false) => {
     if (!mapRef.current) return;
     if (userMarkerRef.current) mapRef.current.removeLayer(userMarkerRef.current);
@@ -322,13 +342,16 @@ const App: React.FC = () => {
   const currentRoute = routes[selectedRouteIndex];
 
   return (
-    <div className="relative h-screen w-full flex flex-col bg-slate-900 font-sans overflow-hidden">
-      <div id="map-container" className="absolute inset-0 z-0" />
+    // Use [100dvh] for dynamic viewport height to fix mobile browser scroll issues
+    <div className="relative w-full h-[100dvh] flex flex-col bg-slate-900 font-sans overflow-hidden">
+      
+      {/* Map Layer - Absolute & Fixed */}
+      <div id="map-container" className="absolute inset-0 z-0 h-full w-full" />
 
       {/* --- RAIN ALERT COMPONENT --- */}
       {rainAlert && (
-          <div className="absolute top-24 left-4 right-4 z-[60] flex justify-center animate-in slide-in-from-top-10 duration-500">
-              <div className="bg-red-600/90 backdrop-blur-md text-white p-4 rounded-3xl shadow-[0_0_20px_rgba(220,38,38,0.5)] border-2 border-red-400 flex items-center gap-4 max-w-sm">
+          <div className="absolute top-24 left-4 right-4 z-[60] flex justify-center animate-in slide-in-from-top-10 duration-500 pointer-events-none">
+              <div className="bg-red-600/90 backdrop-blur-md text-white p-4 rounded-3xl shadow-[0_0_20px_rgba(220,38,38,0.5)] border-2 border-red-400 flex items-center gap-4 max-w-sm pointer-events-auto">
                   <div className="bg-white/20 p-3 rounded-full animate-pulse shrink-0">
                       <CloudRain size={24} strokeWidth={3} />
                   </div>
@@ -368,22 +391,21 @@ const App: React.FC = () => {
 
             {/* Music Control Overlay */}
             {showMusicPanel && (
-                <div className="absolute top-28 right-4 z-50 bg-slate-900/95 backdrop-blur-xl border border-white/10 p-4 rounded-2xl shadow-2xl w-48 animate-in slide-in-from-right">
+                <div className="absolute top-28 right-4 z-50 bg-slate-900/95 backdrop-blur-xl border border-white/10 p-4 rounded-2xl shadow-2xl w-48 animate-in slide-in-from-right pointer-events-auto">
                     <div className="flex items-center gap-2 mb-3 text-green-400 font-bold text-xs uppercase tracking-widest"><Radio size={14}/> Müzik Modu</div>
                     <button onClick={openSpotify} className="w-full bg-green-500 hover:bg-green-400 text-slate-900 font-bold py-3 rounded-xl mb-2 flex items-center justify-center gap-2 transition-colors">
                         <img src="https://upload.wikimedia.org/wikipedia/commons/1/19/Spotify_logo_without_text.svg" className="w-5 h-5" alt="Spotify" />
                         Spotify Aç
                     </button>
                     <div className="grid grid-cols-2 gap-2">
-                        {/* Fake Controls since we can't really control native spotify from web easily without auth */}
                         <button className="bg-white/10 hover:bg-white/20 text-white py-2 rounded-lg flex justify-center"><Play size={20} fill="currentColor" /></button>
                         <button className="bg-white/10 hover:bg-white/20 text-white py-2 rounded-lg flex justify-center"><SkipForward size={20} fill="currentColor" /></button>
                     </div>
                 </div>
             )}
 
-            {/* Visor Dashboard (High Contrast) */}
-            <div className="absolute bottom-6 left-4 right-4 z-50 pointer-events-none">
+            {/* Visor Dashboard (High Contrast) - Raised slightly to avoid home bar interference */}
+            <div className="absolute bottom-10 left-4 right-4 z-50 pointer-events-none">
                 <div className="bg-black/80 backdrop-blur-xl border-t-2 border-blue-500 rounded-3xl p-6 shadow-2xl grid grid-cols-3 items-center">
                     {/* Speed */}
                     <div className="col-span-1 border-r border-white/10 flex flex-col items-center">
@@ -410,24 +432,24 @@ const App: React.FC = () => {
       {/* --- PLANNING MODE --- */}
       {!isNavigating && (
         <>
-            <div className="absolute top-6 left-4 right-4 z-40 pointer-events-none space-y-3">
-                {/* Search Bar */}
+            <div className="absolute top-4 left-4 right-4 z-40 pointer-events-none space-y-3">
+                {/* Search Bar - Glassmorphism */}
                 <div className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-3xl p-2 shadow-2xl pointer-events-auto flex flex-col gap-2">
                     <div className="relative group">
                         <div className="absolute left-4 top-3.5 text-blue-400"><MapPin size={18} /></div>
-                        <input type="text" placeholder="Nereden?" className="w-full bg-white/5 text-white p-3 pl-11 rounded-2xl border-none outline-none focus:ring-1 focus:ring-blue-500"
+                        <input type="text" placeholder="Nereden?" className="w-full bg-white/5 text-white p-3 pl-11 rounded-2xl border-none outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-slate-500"
                         value={startQuery} onChange={(e) => setStartQuery(e.target.value)} onFocus={() => setActiveSearchField('start')} />
                     </div>
                     <div className="relative group">
                         <div className="absolute left-4 top-3.5 text-red-400"><Search size={18} /></div>
-                        <input type="text" placeholder="Nereye?" className="w-full bg-white/5 text-white p-3 pl-11 rounded-2xl border-none outline-none focus:ring-1 focus:ring-red-500"
+                        <input type="text" placeholder="Nereye?" className="w-full bg-white/5 text-white p-3 pl-11 rounded-2xl border-none outline-none focus:ring-1 focus:ring-red-500 transition-all placeholder:text-slate-500"
                         value={endQuery} onChange={(e) => setEndQuery(e.target.value)} onFocus={() => setActiveSearchField('end')} />
                     </div>
-                    {/* Search Results */}
+                    {/* Search Results Dropdown */}
                     {activeSearchField && searchResults.length > 0 && (
-                        <div className="bg-slate-800 rounded-xl mt-1 overflow-hidden max-h-[30vh] overflow-y-auto border border-white/10">
+                        <div className="bg-slate-800 rounded-xl mt-1 overflow-hidden max-h-[35vh] overflow-y-auto border border-white/10 shadow-2xl">
                             {searchResults.map((res, idx) => (
-                                <div key={idx} className="p-3 hover:bg-white/10 cursor-pointer text-sm flex flex-col border-b border-white/5" onClick={() => handleSelectLocation(res)}>
+                                <div key={idx} className="p-3 hover:bg-white/10 cursor-pointer text-sm flex flex-col border-b border-white/5 last:border-0" onClick={() => handleSelectLocation(res)}>
                                     <span className="font-bold text-white">{res.name}</span>
                                     {res.admin1 && <span className="text-slate-400 text-xs">{res.admin1}</span>}
                                 </div>
@@ -436,83 +458,111 @@ const App: React.FC = () => {
                     )}
                 </div>
 
-                {/* Calculate Button */}
-                <div className="pointer-events-auto">
-                    <button onClick={calculateRoutes} disabled={!startLoc || !endLoc || loading}
-                    className={`w-full py-4 rounded-2xl font-bold shadow-xl transition-all border border-white/10 backdrop-blur-md text-lg ${loading ? 'bg-slate-800 text-slate-500' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}>
-                    {loading ? 'Rotalar Hesaplanıyor...' : 'Rotaları Bul'}
-                    </button>
-                </div>
+                {/* Calculate Button - Only shown if not analysing yet to save space */}
+                {(!analysis || routes.length === 0) && (
+                    <div className="pointer-events-auto animate-in slide-in-from-top-2">
+                        <button onClick={calculateRoutes} disabled={!startLoc || !endLoc || loading}
+                        className={`w-full py-4 rounded-2xl font-bold shadow-xl transition-all border border-white/10 backdrop-blur-md text-lg flex justify-center items-center gap-2 ${loading ? 'bg-slate-800 text-slate-500' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}>
+                        {loading ? <><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/> Hesaplanıyor...</> : 'Rotaları Bul'}
+                        </button>
+                    </div>
+                )}
             </div>
 
-            {/* --- ROUTE SELECTION & ANALYSIS SHEET --- */}
+            {/* Locate Me FAB */}
+            <button 
+               onClick={handleRecenter}
+               className="absolute right-4 top-[240px] z-40 bg-slate-900/80 backdrop-blur-xl border border-white/10 p-3 rounded-2xl shadow-2xl text-blue-500 active:scale-95 transition-all hover:bg-slate-800 hover:text-white"
+               aria-label="Konumumu Bul"
+            >
+               <LocateFixed size={24} />
+            </button>
+
+            {/* --- BOTTOM SHEET: ROUTE SELECTION & ANALYSIS --- */}
+            {/* Redesigned to be anchored at the bottom with proper scrolling */}
             {routes.length > 0 && analysis && (
-                <div className="absolute bottom-4 left-4 right-4 z-40 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-3xl p-1 shadow-2xl flex flex-col max-h-[60vh]">
+                <div className="absolute bottom-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-xl border-t border-white/10 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] flex flex-col max-h-[75dvh] animate-in slide-in-from-bottom duration-300">
                     
-                    {/* Route Switcher (Tabs) */}
-                    <div className="flex p-2 gap-2 overflow-x-auto no-scrollbar">
+                    {/* Drag Handle & Header Area */}
+                    <div className="flex-none pt-3 pb-1 w-full flex justify-center" onClick={() => {/* Optional: Expand/Collapse logic could go here */}}>
+                        <div className="w-12 h-1.5 bg-white/20 rounded-full" />
+                    </div>
+
+                    {/* Route Switcher (Horizontal Scroll) */}
+                    <div className="flex-none flex p-3 gap-3 overflow-x-auto no-scrollbar snap-x">
                         {routes.map((r, idx) => (
                             <button key={idx} onClick={() => handleRouteSelect(idx)} 
-                                className={`flex-1 min-w-[120px] py-3 px-4 rounded-xl border transition-all flex flex-col items-center justify-center gap-1 ${selectedRouteIndex === idx ? 'bg-white/10 border-white/20 shadow-inner' : 'border-transparent opacity-50'}`}>
-                                <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: r.color }}>{r.name}</div>
-                                <div className="text-lg font-bold text-white">{(r.distance / 1000).toFixed(0)} km</div>
-                                <div className="text-xs text-slate-400">{Math.floor(r.duration / 60)} dk</div>
+                                className={`flex-none snap-center min-w-[130px] py-3 px-4 rounded-2xl border transition-all flex flex-col items-center justify-center gap-1 relative overflow-hidden ${selectedRouteIndex === idx ? 'bg-white/10 border-white/20 shadow-lg' : 'border-transparent opacity-60 hover:opacity-80'}`}>
+                                <div className="text-[10px] font-bold uppercase tracking-wider z-10" style={{ color: r.color }}>{r.name}</div>
+                                <div className="text-xl font-black text-white z-10">{(r.distance / 1000).toFixed(0)} km</div>
+                                <div className="text-xs text-slate-400 z-10">{Math.floor(r.duration / 60)} dk</div>
+                                {selectedRouteIndex === idx && <div className="absolute inset-0 bg-gradient-to-t from-white/5 to-transparent z-0"/>}
                             </button>
                         ))}
                     </div>
 
-                    <div className="h-px bg-white/10 w-full my-1" />
+                    <div className="flex-none h-px bg-white/10 w-full mb-1" />
 
-                    {/* Gemini Content Area */}
-                    <div className="p-4 overflow-y-auto">
-                        <div className="flex justify-between items-start mb-3">
-                             <h2 className="text-white font-bold text-lg w-3/4">{analysis.summary.split('.')[0]}.</h2>
-                             <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase border ${analysis.riskLevel === 'Düşük' ? 'border-emerald-500 text-emerald-500' : 'border-red-500 text-red-500'}`}>
+                    {/* Scrollable Content Area - Flex Grow */}
+                    <div className="flex-1 overflow-y-auto min-h-0 p-4 pt-2">
+                        <div className="flex justify-between items-start mb-4">
+                             <h2 className="text-white font-bold text-xl leading-tight w-3/4">{analysis.summary.split('.')[0]}.</h2>
+                             <div className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase border tracking-wider ${analysis.riskLevel === 'Düşük' ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400' : 'border-red-500/50 bg-red-500/10 text-red-400'}`}>
                                 {analysis.riskLevel} Risk
                              </div>
                         </div>
 
-                        {/* Mini Tabs for Content */}
-                        <div className="flex bg-slate-800/50 p-1 rounded-xl mb-3">
-                            <button onClick={() => setActiveTab('general')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'general' ? 'bg-slate-700 text-white' : 'text-slate-400'}`}>Özet</button>
-                            <button onClick={() => setActiveTab('segments')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'segments' ? 'bg-slate-700 text-white' : 'text-slate-400'}`}>Yol</button>
-                            <button onClick={() => setActiveTab('stops')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'stops' ? 'bg-slate-700 text-white' : 'text-slate-400'}`}>Mola</button>
+                        {/* Mini Tabs */}
+                        <div className="flex bg-black/40 p-1 rounded-xl mb-4 sticky top-0 z-10 backdrop-blur-md border border-white/5">
+                            <button onClick={() => setActiveTab('general')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'general' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>Özet</button>
+                            <button onClick={() => setActiveTab('segments')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'segments' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>Yol</button>
+                            <button onClick={() => setActiveTab('stops')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'stops' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>Mola</button>
                         </div>
 
-                        <div className="min-h-[100px]">
+                        {/* Tab Content */}
+                        <div className="space-y-4 pb-4">
                             {activeTab === 'general' && (
-                                <div className="grid grid-cols-2 gap-2 animate-in fade-in">
-                                    <div className="bg-white/5 p-2 rounded-xl">
-                                        <div className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1"><Thermometer size={10}/> Hissedilen</div>
-                                        <div className="text-lg font-bold text-white">{windChill}°C</div>
+                                <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-bottom-2">
+                                    <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
+                                        <div className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1 mb-1"><Thermometer size={10}/> Hissedilen</div>
+                                        <div className="text-xl font-bold text-white">{windChill}°C</div>
                                     </div>
-                                    <div className="bg-white/5 p-2 rounded-xl">
-                                        <div className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1"><Music size={10}/> Vibe</div>
-                                        <div className="text-xs font-bold text-purple-300 truncate">{analysis.playlistVibe}</div>
+                                    <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
+                                        <div className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1 mb-1"><Music size={10}/> Vibe</div>
+                                        <div className="text-xs font-bold text-purple-300 truncate leading-6">{analysis.playlistVibe}</div>
                                     </div>
-                                    <div className="col-span-2 text-xs text-slate-300 leading-relaxed italic border-l-2 border-slate-600 pl-2">
-                                        "{analysis.gearAdvice}"
+                                    <div className="col-span-2 bg-blue-500/10 border-l-4 border-blue-500 p-3 rounded-r-xl">
+                                        <div className="text-[10px] text-blue-300 font-bold uppercase mb-1">Eğitmen Notu</div>
+                                        <div className="text-sm text-slate-200 italic leading-relaxed">
+                                            "{analysis.gearAdvice}"
+                                        </div>
                                     </div>
                                 </div>
                             )}
                              {activeTab === 'segments' && (
-                                <div className="space-y-2 animate-in fade-in">
+                                <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
                                     {analysis.segments.map((seg, i) => (
-                                        <div key={i} className="bg-white/5 p-2 rounded-lg border-l-2 border-blue-500">
-                                            <div className="flex justify-between"><span className="text-xs font-bold text-white">{seg.name}</span> <span className="text-[10px] text-slate-400">{seg.risk}</span></div>
-                                            <p className="text-[10px] text-slate-400">{seg.description}</p>
+                                        <div key={i} className="bg-white/5 p-3 rounded-xl border border-white/5 relative overflow-hidden">
+                                            <div className={`absolute left-0 top-0 bottom-0 w-1 ${seg.risk === 'Yüksek' ? 'bg-red-500' : seg.risk === 'Orta' ? 'bg-yellow-500' : 'bg-emerald-500'}`}/>
+                                            <div className="pl-3">
+                                                <div className="flex justify-between mb-1"><span className="text-sm font-bold text-white">{seg.name}</span> <span className="text-[10px] text-slate-400 border border-white/10 px-1.5 py-0.5 rounded">{seg.risk}</span></div>
+                                                <p className="text-xs text-slate-400 leading-relaxed">{seg.description}</p>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
                              )}
                              {activeTab === 'stops' && (
-                                <div className="space-y-2 animate-in fade-in">
+                                <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
                                     {analysis.pitStops.map((stop, i) => (
-                                        <div key={i} className="bg-white/5 p-2 rounded-lg flex gap-2">
-                                            <Coffee size={14} className="text-orange-400 mt-1"/>
+                                        <div key={i} className="bg-white/5 p-3 rounded-xl border border-white/5 flex gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center shrink-0 text-orange-400">
+                                                <Coffee size={18} />
+                                            </div>
                                             <div>
-                                                <div className="text-xs font-bold text-white">{stop.type}</div>
-                                                <p className="text-[10px] text-slate-400">{stop.locationDescription}</p>
+                                                <div className="text-sm font-bold text-white">{stop.type}</div>
+                                                <p className="text-xs text-slate-400 mt-0.5">{stop.locationDescription}</p>
+                                                <p className="text-[10px] text-slate-500 mt-1 italic">{stop.reason}</p>
                                             </div>
                                         </div>
                                     ))}
@@ -521,10 +571,10 @@ const App: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Start Button */}
-                    <div className="p-3 pt-0">
-                        <button onClick={startNavigation} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-black text-lg shadow-lg flex items-center justify-center gap-2">
-                            <Navigation size={20} fill="currentColor" /> SÜRÜŞÜ BAŞLAT
+                    {/* Fixed Footer Button - with safe area padding */}
+                    <div className="flex-none p-4 pt-2 pb-8 bg-slate-900/80 border-t border-white/5 backdrop-blur-lg z-20">
+                        <button onClick={startNavigation} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl font-black text-lg shadow-lg flex items-center justify-center gap-2 transform active:scale-[0.98] transition-all">
+                            <Navigation size={22} fill="currentColor" /> SÜRÜŞÜ BAŞLAT
                         </button>
                     </div>
                 </div>

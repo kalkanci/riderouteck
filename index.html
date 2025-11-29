@@ -2,7 +2,7 @@
 <html lang="tr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>MotoRota</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -11,19 +11,36 @@
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <style>
+      html, body {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden; /* Prevent pull-to-refresh and bounce */
+        overscroll-behavior: none;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #root {
+        height: 100%;
+        width: 100%;
+      }
       /* Custom scrollbar for dark mode aesthetics */
       ::-webkit-scrollbar {
-        width: 6px;
+        width: 4px;
       }
       ::-webkit-scrollbar-track {
-        background: #1e293b;
+        background: transparent;
       }
       ::-webkit-scrollbar-thumb {
         background: #475569;
-        border-radius: 3px;
+        border-radius: 4px;
       }
       .leaflet-container {
         background: #0f172a; /* Slate 900 matches app theme */
+        height: 100%;
+        width: 100%;
+        z-index: 0;
       }
       /* Pulsing user location marker style */
       .user-marker {
@@ -62,7 +79,7 @@
 }
 </script>
 </head>
-  <body class="bg-slate-900 text-slate-100 overflow-hidden">
+  <body class="bg-slate-900 text-slate-100">
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
   </body>
