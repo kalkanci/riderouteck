@@ -11,7 +11,6 @@ export const analyzeRouteWithGemini = async (
   // 1. Safe API Key Access
   let apiKey = "";
   try {
-    // Vite or Node environment check
     if (typeof process !== "undefined" && process.env && process.env.API_KEY) {
       apiKey = process.env.API_KEY;
     }
@@ -19,76 +18,82 @@ export const analyzeRouteWithGemini = async (
     console.warn("Environment variable access error:", e);
   }
 
-  // 2. Fallback if No Key (Prevents Crash)
+  // 2. Fallback
   if (!apiKey) {
     return {
       riskLevel: "Düşük",
-      summary: "API Anahtarı bulunamadı. Rota ve hava durumu verileri gösteriliyor ancak yapay zeka analizi için Vercel ayarlarından API_KEY eklemelisiniz.",
-      elevationDetails: "Analiz devre dışı.",
-      windWarning: "Rüzgar verilerini haritadan kontrol ediniz.",
-      gearAdvice: "Mevsim koşullarına uygun giyinin.",
-      roadCondition: "Standart yol durumu.",
-      scenicScore: "-"
+      summary: "API Anahtarı eksik. Gelişmiş analiz yapılamıyor.",
+      elevationDetails: "-",
+      windWarning: "-",
+      gearAdvice: "Ekipman kontrolü yapın.",
+      roadCondition: "Standart",
+      scenicScore: "-",
+      segments: [],
+      pitStops: [],
+      playlistVibe: "Radyo"
     };
   }
 
-  // 3. Initialize AI only when needed
+  // 3. Initialize AI
   const ai = new GoogleGenAI({ apiKey: apiKey });
   const model = "gemini-2.5-flash";
 
   const weatherSummary = weatherPoints
     .map(
       (w, i) =>
-        `Nokta ${i + 1}: Konum(${w.lat.toFixed(2)}, ${w.lng.toFixed(2)}), Sıcaklık: ${w.temp}°C, Rüzgar: ${w.windSpeed} km/s`
+        `Nokta ${i + 1}: Konum(${w.lat.toFixed(2)}, ${w.lng.toFixed(2)}), Sıcaklık: ${w.temp}°C, Rüzgar: ${w.windSpeed} km/s, Yağış İhtimali: %${w.rainProb}`
     )
     .join("\n");
 
   const prompt = `
-    Aşağıdaki motosiklet rotasını analiz et.
+    Sen uzman bir motosiklet yol planlayıcısısın. Aşağıdaki rotayı bir motorcu için detaylı analiz et.
     Başlangıç: ${start}
     Bitiş: ${end}
-    Rota üzerindeki hava durumu verileri:
+    Hava Durumu Verileri:
     ${weatherSummary}
 
-    Özellikle şunlara odaklan:
-    1. Yükseklik/Rakım değişimleri: Dağ geçidi, yayla veya deniz seviyesine iniş var mı?
-    2. Rüzgar ve sıcaklık ilişkisi.
+    İstediğim Çıktılar:
+    1. Genel Risk ve Özet.
+    2. Rota Segmentasyonu: Rotayı mantıksal olarak 3 parçaya böl (Örn: Şehir çıkışı, Otoban, Varış yolu) ve her biri için motorcuya özel sürüş tavsiyesi ver.
+    3. Mola Durakları: Bu rotada ve bu hava durumunda nerede durulmalı? (Örn: Soğuksa sıcak kahve, manzaralıysa fotoğraf molası). 3 öneri ver.
+    4. Playlist Modu: Bu yolun ve havanın ruhuna uygun bir müzik türü/vibe öner (Örn: "Classic Rock", "Lo-Fi Beats", "Enerjik Pop").
   `;
 
   const schema = {
     type: Type.OBJECT,
     properties: {
-      riskLevel: {
-        type: Type.STRING,
-        enum: ["Düşük", "Orta", "Yüksek"],
-        description: "Genel sürüş risk seviyesi.",
+      riskLevel: { type: Type.STRING, enum: ["Düşük", "Orta", "Yüksek"] },
+      summary: { type: Type.STRING },
+      elevationDetails: { type: Type.STRING },
+      windWarning: { type: Type.STRING },
+      gearAdvice: { type: Type.STRING },
+      roadCondition: { type: Type.STRING },
+      scenicScore: { type: Type.STRING },
+      playlistVibe: { type: Type.STRING, description: "Yolun ruhuna uygun müzik türü." },
+      segments: {
+        type: Type.ARRAY,
+        items: {
+            type: Type.OBJECT,
+            properties: {
+                name: { type: Type.STRING, description: "Segment adı (Örn: Şehir İçi Geçiş)" },
+                description: { type: Type.STRING, description: "Bu bölümdeki sürüş stratejisi" },
+                risk: { type: Type.STRING, enum: ["Düşük", "Orta", "Yüksek"] }
+            }
+        }
       },
-      summary: {
-        type: Type.STRING,
-        description: "Genel rota özeti.",
-      },
-      elevationDetails: {
-        type: Type.STRING,
-        description: "Rakım analizi. Örn: 'Bolu Dağı geçişinde rakım 900m'ye çıkıyor, ısı düşebilir.'",
-      },
-      windWarning: {
-        type: Type.STRING,
-        description: "Rüzgar riski uyarısı.",
-      },
-      gearAdvice: {
-        type: Type.STRING,
-        description: "Ekipman tavsiyesi.",
-      },
-      roadCondition: {
-         type: Type.STRING,
-         description: "Tahmini asfalt kalitesi.",
-      },
-      scenicScore: {
-          type: Type.STRING,
-          description: "Manzara puanı.",
+      pitStops: {
+        type: Type.ARRAY,
+        items: {
+            type: Type.OBJECT,
+            properties: {
+                type: { type: Type.STRING, description: "Mola türü (Kahve, Yemek, Manzara)" },
+                locationDescription: { type: Type.STRING, description: "Yaklaşık konum tanımı" },
+                reason: { type: Type.STRING, description: "Neden burada durulmalı?" }
+            }
+        }
       }
     },
-    required: ["riskLevel", "summary", "elevationDetails", "windWarning", "gearAdvice", "roadCondition", "scenicScore"],
+    required: ["riskLevel", "summary", "elevationDetails", "windWarning", "gearAdvice", "segments", "pitStops", "playlistVibe"],
   };
 
   try {
@@ -96,7 +101,7 @@ export const analyzeRouteWithGemini = async (
       model: model,
       contents: prompt,
       config: {
-        systemInstruction: "Sen uzman bir motosiklet eğitmenisin. Yanıtı Türkçe ve JSON formatında ver.",
+        systemInstruction: "Motosiklet odaklı, samimi ve güvenliği ön planda tutan bir dilde, Türkçe yanıt ver.",
         responseMimeType: "application/json",
         responseSchema: schema,
       },
@@ -110,12 +115,15 @@ export const analyzeRouteWithGemini = async (
     console.error("Gemini Analysis Error:", error);
     return {
       riskLevel: "Orta",
-      summary: "Yapay zeka bağlantısı sırasında bir hata oluştu.",
-      elevationDetails: "Veri alınamadı.",
-      windWarning: "Manuel kontrol önerilir.",
-      gearAdvice: "Tam korumalı ekipman giyiniz.",
-      roadCondition: "Bilinmiyor, dikkatli sürün.",
-      scenicScore: "Standart Rota"
+      summary: "Yapay zeka analizine şu an ulaşılamıyor.",
+      elevationDetails: "-",
+      windWarning: "-",
+      gearAdvice: "Tam ekipman.",
+      roadCondition: "Bilinmiyor",
+      scenicScore: "-",
+      segments: [],
+      pitStops: [],
+      playlistVibe: "Motor Sesi"
     };
   }
 };

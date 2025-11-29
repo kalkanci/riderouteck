@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Navigation, Search, CloudRain, Wind, AlertTriangle, ShieldCheck, XCircle, Volume2, Settings, Mountain, Zap, Wallet, Menu, X, Thermometer, ArrowUp, Umbrella, Eye, Activity, LocateFixed, Compass } from 'lucide-react';
+import { MapPin, Navigation, Search, CloudRain, Wind, AlertTriangle, ShieldCheck, XCircle, Volume2, Settings, Mountain, Zap, Wallet, Menu, X, Thermometer, ArrowUp, Umbrella, Eye, Activity, LocateFixed, Compass, Music, Coffee, Map, Sparkles, ChevronRight } from 'lucide-react';
 import { LocationData, RouteAnalysis, WeatherData } from './types';
 import { searchLocation, getIpLocation, getRoute, getWeatherForPoint } from './services/api';
 import { analyzeRouteWithGemini } from './services/geminiService';
@@ -44,6 +44,9 @@ const App: React.FC = () => {
   const [isNavigating, setIsNavigating] = useState(false);
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [heading, setHeading] = useState(0);
+
+  // Analysis Tabs
+  const [activeTab, setActiveTab] = useState<'general' | 'segments' | 'stops'>('general');
 
   // --- Refs ---
   const mapRef = useRef<any>(null); 
@@ -187,6 +190,7 @@ const App: React.FC = () => {
     setLoading(true);
     setAnalysis(null);
     setFallbackWarning(false);
+    setActiveTab('general');
     
     // Clean Map
     if (routeLayerRef.current) mapRef.current.removeLayer(routeLayerRef.current);
@@ -302,8 +306,8 @@ const App: React.FC = () => {
                  </button>
             </div>
 
-            {/* Dynamic Warnings (Pills) */}
-            <div className="absolute top-28 left-4 z-40 space-y-2 pointer-events-none">
+            {/* Dynamic Warnings & Gemini Tips */}
+            <div className="absolute top-28 left-4 z-40 space-y-2 pointer-events-none w-full max-w-[250px]">
                 {hasImpendingRain && (
                     <div className="bg-blue-600/90 backdrop-blur-md text-white px-4 py-2 rounded-xl shadow-lg flex items-center gap-2 animate-in slide-in-from-left">
                         <Umbrella size={18} className="animate-bounce" />
@@ -314,6 +318,15 @@ const App: React.FC = () => {
                      <div className="bg-yellow-500/90 backdrop-blur-md text-slate-900 px-4 py-2 rounded-xl shadow-lg flex items-center gap-2 animate-in slide-in-from-left">
                         <Wind size={18} />
                         <span className="text-sm font-bold">Şiddetli Rüzgar</span>
+                    </div>
+                )}
+                {/* Gemini Playlist Suggestion in Ride Mode */}
+                {analysis?.playlistVibe && (
+                    <div className="bg-purple-900/80 backdrop-blur-md border border-purple-500/30 text-white px-4 py-2 rounded-xl shadow-lg flex items-center gap-2 animate-in slide-in-from-left delay-300">
+                        <Music size={16} className="text-purple-300" />
+                        <div className="text-xs">
+                            <span className="opacity-70">Mood:</span> <span className="font-bold text-purple-200">{analysis.playlistVibe}</span>
+                        </div>
                     </div>
                 )}
             </div>
@@ -432,42 +445,106 @@ const App: React.FC = () => {
                 </div>
             </div>
 
-            {/* Analysis Sheet */}
+            {/* AI Analysis Sheet (Tabs) */}
             {analysis && currentAvgWeather && (
-                <div className="absolute bottom-4 left-4 right-4 z-40 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-3xl p-4 shadow-2xl max-h-[60vh] overflow-y-auto animate-in slide-in-from-bottom-10">
+                <div className="absolute bottom-4 left-4 right-4 z-40 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-3xl p-4 shadow-2xl max-h-[60vh] overflow-y-auto animate-in slide-in-from-bottom-10 flex flex-col">
                 
-                <div className="flex justify-between items-start mb-4">
-                    <div>
-                        <div className="flex items-center gap-2 mb-1">
-                             <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${analysis.riskLevel === 'Düşük' ? 'border-emerald-500 text-emerald-500' : 'border-red-500 text-red-500'}`}>
-                                {analysis.riskLevel} Risk
-                             </div>
-                             {avoidTolls && <div className="px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-blue-500 text-blue-500">Ücretsiz</div>}
-                        </div>
-                        <h2 className="text-white font-bold text-lg leading-tight w-3/4">{analysis.summary.split('.')[0]}.</h2>
-                    </div>
-                    {routeInfo && (
-                        <div className="text-right">
-                        <div className="text-xl font-bold text-white font-mono">{(routeInfo.distance / 1000).toFixed(0)}<span className="text-sm">km</span></div>
-                        <div className="text-xs text-slate-400">{Math.floor(routeInfo.duration / 60)}dk</div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Info Grid */}
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div className="bg-white/5 p-3 rounded-2xl">
-                         <div className="text-[10px] text-slate-400 uppercase font-bold mb-1 flex items-center gap-1"><Thermometer size={10}/> Hissedilen</div>
-                         <div className="text-xl font-bold text-white">{windChill}°</div>
-                         <div className="text-[10px] text-slate-300 leading-tight mt-1">{windChill < 15 ? 'Kışlık Ekipman' : 'Mevsimlik'}</div>
-                    </div>
-                    <div className="bg-white/5 p-3 rounded-2xl">
-                         <div className="text-[10px] text-slate-400 uppercase font-bold mb-1 flex items-center gap-1"><Mountain size={10}/> Rakım</div>
-                         <div className="text-[10px] text-slate-300 leading-tight">{analysis.elevationDetails.substring(0, 50)}...</div>
+                {/* Gemini Badge */}
+                <div className="flex justify-center mb-2">
+                    <div className="flex items-center gap-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-3 py-0.5 rounded-full text-[10px] font-bold text-white shadow-lg animate-pulse">
+                        <Sparkles size={10} /> Powered by Gemini
                     </div>
                 </div>
 
-                {/* Main Action Button: Start Navigation */}
+                {/* Tabs Header */}
+                <div className="flex bg-slate-800/50 p-1 rounded-xl mb-4">
+                    <button onClick={() => setActiveTab('general')} className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'general' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}>
+                        <ShieldCheck size={14} /> Özet
+                    </button>
+                    <button onClick={() => setActiveTab('segments')} className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'segments' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}>
+                        <Map size={14} /> Plan
+                    </button>
+                    <button onClick={() => setActiveTab('stops')} className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'stops' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}>
+                        <Coffee size={14} /> Molalar
+                    </button>
+                </div>
+
+                {/* TAB CONTENT: GENERAL */}
+                {activeTab === 'general' && (
+                    <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                        <div className="flex justify-between items-start mb-4">
+                            <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${analysis.riskLevel === 'Düşük' ? 'border-emerald-500 text-emerald-500' : 'border-red-500 text-red-500'}`}>
+                                        {analysis.riskLevel} Risk
+                                    </div>
+                                    {analysis.playlistVibe && (
+                                        <div className="px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-purple-500 text-purple-400 flex items-center gap-1">
+                                            <Music size={10} /> {analysis.playlistVibe}
+                                        </div>
+                                    )}
+                                </div>
+                                <h2 className="text-white font-bold text-lg leading-tight">{analysis.summary.split('.')[0]}.</h2>
+                            </div>
+                        </div>
+
+                        {/* Info Grid */}
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                            <div className="bg-white/5 p-3 rounded-2xl">
+                                <div className="text-[10px] text-slate-400 uppercase font-bold mb-1 flex items-center gap-1"><Thermometer size={10}/> Hissedilen</div>
+                                <div className="text-xl font-bold text-white">{windChill}°</div>
+                                <div className="text-[10px] text-slate-300 leading-tight mt-1">{windChill < 15 ? 'Kışlık Ekipman' : 'Mevsimlik'}</div>
+                            </div>
+                            <div className="bg-white/5 p-3 rounded-2xl">
+                                <div className="text-[10px] text-slate-400 uppercase font-bold mb-1 flex items-center gap-1"><Mountain size={10}/> Rakım</div>
+                                <div className="text-[10px] text-slate-300 leading-tight">{analysis.elevationDetails.substring(0, 50)}...</div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* TAB CONTENT: SEGMENTS */}
+                {activeTab === 'segments' && (
+                    <div className="space-y-3 animate-in fade-in slide-in-from-right-4 duration-300 mb-2">
+                        {analysis.segments && analysis.segments.length > 0 ? (
+                            analysis.segments.map((seg, i) => (
+                                <div key={i} className="bg-slate-800/50 p-3 rounded-xl border-l-4 border-blue-500">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <h3 className="text-sm font-bold text-white">{seg.name}</h3>
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded bg-slate-900 ${seg.risk === 'Yüksek' ? 'text-red-400' : 'text-emerald-400'}`}>{seg.risk}</span>
+                                    </div>
+                                    <p className="text-xs text-slate-400">{seg.description}</p>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="text-center text-slate-500 text-xs py-4">Segment verisi yok.</div>
+                        )}
+                    </div>
+                )}
+
+                {/* TAB CONTENT: PIT STOPS */}
+                {activeTab === 'stops' && (
+                    <div className="space-y-3 animate-in fade-in slide-in-from-right-4 duration-300 mb-2">
+                        {analysis.pitStops && analysis.pitStops.length > 0 ? (
+                            analysis.pitStops.map((stop, i) => (
+                                <div key={i} className="flex gap-3 bg-slate-800/50 p-3 rounded-xl items-start">
+                                    <div className="bg-orange-500/20 p-2 rounded-lg text-orange-400 shrink-0">
+                                        <Coffee size={18} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-bold text-white">{stop.type}</h3>
+                                        <div className="text-xs font-medium text-orange-200/70 mb-1">{stop.locationDescription}</div>
+                                        <p className="text-[10px] text-slate-400 leading-relaxed">"{stop.reason}"</p>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="text-center text-slate-500 text-xs py-4">Mola önerisi yok.</div>
+                        )}
+                    </div>
+                )}
+
+                {/* Main Action Button */}
                 <button 
                     onClick={startNavigation}
                     className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-4 rounded-2xl font-black text-lg shadow-lg shadow-emerald-900/50 flex items-center justify-center gap-2 mb-3 transition-transform active:scale-95"

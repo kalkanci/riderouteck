@@ -23,14 +23,30 @@ export interface WeatherData {
   weatherCode: number;
 }
 
+export interface RouteSegment {
+  name: string; // e.g. "İstanbul Çıkışı - Tem Otoyolu"
+  description: string; // "Yoğun trafik, dikkatli şerit değişimi."
+  risk: "Düşük" | "Orta" | "Yüksek";
+}
+
+export interface PitStop {
+  type: string; // e.g. "Benzin & Kahve", "Manzara", "Yemek"
+  locationDescription: string; // "Bolu Tüneli çıkışındaki tesisler"
+  reason: string; // "Sıcak bir kahve ve motoru dinlendirmek için ideal."
+}
+
 export interface RouteAnalysis {
   riskLevel: "Düşük" | "Orta" | "Yüksek";
   summary: string;
-  elevationDetails: string; // New: Specific elevation analysis
+  elevationDetails: string;
   windWarning: string;
   gearAdvice: string;
   roadCondition: string; 
-  scenicScore: string;   
+  scenicScore: string;
+  // New Gemini Features
+  segments: RouteSegment[];
+  pitStops: PitStop[];
+  playlistVibe: string;
 }
 
 export interface RouteGeometry {
