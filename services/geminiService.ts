@@ -1,15 +1,39 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { WeatherData, RouteAnalysis } from "../types";
 
-// Initialize Gemini
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export const analyzeRouteWithGemini = async (
   start: string,
   end: string,
   weatherPoints: WeatherData[],
-  routeType: 'fastest' | 'scenic' | 'safe' // Keeping type signature for compatibility but logic focuses on general analysis
+  routeType: 'fastest' | 'scenic' | 'safe'
 ): Promise<RouteAnalysis> => {
+  
+  // 1. Safe API Key Access
+  let apiKey = "";
+  try {
+    // Vite or Node environment check
+    if (typeof process !== "undefined" && process.env && process.env.API_KEY) {
+      apiKey = process.env.API_KEY;
+    }
+  } catch (e) {
+    console.warn("Environment variable access error:", e);
+  }
+
+  // 2. Fallback if No Key (Prevents Crash)
+  if (!apiKey) {
+    return {
+      riskLevel: "Düşük",
+      summary: "API Anahtarı bulunamadı. Rota ve hava durumu verileri gösteriliyor ancak yapay zeka analizi için Vercel ayarlarından API_KEY eklemelisiniz.",
+      elevationDetails: "Analiz devre dışı.",
+      windWarning: "Rüzgar verilerini haritadan kontrol ediniz.",
+      gearAdvice: "Mevsim koşullarına uygun giyinin.",
+      roadCondition: "Standart yol durumu.",
+      scenicScore: "-"
+    };
+  }
+
+  // 3. Initialize AI only when needed
+  const ai = new GoogleGenAI({ apiKey: apiKey });
   const model = "gemini-2.5-flash";
 
   const weatherSummary = weatherPoints
@@ -86,9 +110,9 @@ export const analyzeRouteWithGemini = async (
     console.error("Gemini Analysis Error:", error);
     return {
       riskLevel: "Orta",
-      summary: "Yapay zeka bağlantısı kurulamadı.",
-      elevationDetails: "Rakım verisi alınamadı.",
-      windWarning: "Veri alınamadı.",
+      summary: "Yapay zeka bağlantısı sırasında bir hata oluştu.",
+      elevationDetails: "Veri alınamadı.",
+      windWarning: "Manuel kontrol önerilir.",
       gearAdvice: "Tam korumalı ekipman giyiniz.",
       roadCondition: "Bilinmiyor, dikkatli sürün.",
       scenicScore: "Standart Rota"
