@@ -1,4 +1,4 @@
-import { LocationData, WeatherData, RouteGeometry, RouteOptions } from "../types";
+import { LocationData, WeatherData, RouteAlternative } from "../types";
 
 // OpenStreetMap Nominatim Search
 export const searchLocation = async (query: string): Promise<LocationData[]> => {
@@ -52,66 +52,56 @@ export const getIpLocation = async (): Promise<LocationData | null> => {
   }
 };
 
-// OSRM Routing (Fixed for Paid/Free distinction)
-export const getRoute = async (start: LocationData, end: LocationData, options: RouteOptions): Promise<{ geometry: RouteGeometry | null, usedFallback: boolean }> => {
-  const fetchRoute = async (avoidTolls: boolean) => {
+// OSRM Routing - Returns Multiple Options
+export const getRouteAlternatives = async (start: LocationData, end: LocationData): Promise<RouteAlternative[]> => {
+  
+  const fetchProfile = async (type: 'fastest' | 'scenic'): Promise<RouteAlternative | null> => {
     let url = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`;
     
-    // Aggressive exclusion to force a different route
-    if (avoidTolls) {
-        // Exclude both 'toll' and 'motorway' to force state roads (D-roads)
+    if (type === 'scenic') {
+        // Force backroads by excluding highways and tolls
         url += `&exclude=toll,motorway`;
     } else {
-        // Standard route with alternatives
-        url += `&alternatives=true`;
+        // Standard routing
+        url += `&alternatives=true`; 
     }
 
     try {
         const res = await fetch(url);
         const data = await res.json();
         if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) return null;
-        return data;
+        
+        const route = data.routes[0];
+        return {
+            type,
+            name: type === 'fastest' ? 'Otoban / Hızlı' : 'Köy Yolu / Manzaralı',
+            coordinates: route.geometry.coordinates,
+            distance: route.distance,
+            duration: route.duration,
+            color: type === 'fastest' ? '#3b82f6' : '#10b981' // Blue vs Green
+        };
     } catch (e) {
         return null;
     }
   };
 
-  // 1. Try with user preference
-  let data = await fetchRoute(options.avoidTolls);
+  // Parallel fetch for speed
+  const [fastest, scenic] = await Promise.all([
+      fetchProfile('fastest'),
+      fetchProfile('scenic')
+  ]);
+
+  const results: RouteAlternative[] = [];
+  if (fastest) results.push(fastest);
   
-  // 2. Fallback: If strict avoidance failed (no route found without highways), try standard
-  if (!data && options.avoidTolls) {
-      console.warn("Preferred route failed, falling back to standard.");
-      data = await fetchRoute(false);
-      if (data) {
-          const route = data.routes[0];
-          return {
-              geometry: {
-                  coordinates: route.geometry.coordinates,
-                  distance: route.distance,
-                  duration: route.duration,
-                  alternatives: data.routes
-              },
-              usedFallback: true
-          };
-      }
+  // Only add scenic if it's different enough or exists
+  if (scenic) {
+      // Simple check to see if scenic is identical to fastest (rare but possible on short routes)
+      const isUnique = !fastest || Math.abs(fastest.distance - scenic.distance) > 500; 
+      if (isUnique) results.push(scenic);
   }
 
-  if (data) {
-      // If we didn't use fallback but requested alternatives, OSRM puts the best one first.
-      const route = data.routes[0];
-      return {
-          geometry: {
-              coordinates: route.geometry.coordinates,
-              distance: route.distance,
-              duration: route.duration,
-              alternatives: data.routes
-          },
-          usedFallback: false
-      };
-  }
-
-  return { geometry: null, usedFallback: false };
+  return results;
 };
 
 // Open-Meteo Weather (Enriched)

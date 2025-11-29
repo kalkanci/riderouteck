@@ -49,13 +49,19 @@ export interface RouteAnalysis {
   playlistVibe: string;
 }
 
+export interface RouteAlternative {
+  type: 'fastest' | 'scenic';
+  name: string; // "Otoban / Hızlı" or "Köy Yolu / Manzaralı"
+  coordinates: [number, number][];
+  distance: number; // meters
+  duration: number; // seconds
+  color: string;
+  summary?: string;
+}
+
 export interface RouteGeometry {
   coordinates: [number, number][]; // [lng, lat] from OSRM
   distance: number;
   duration: number;
   alternatives?: any[];
-}
-
-export interface RouteOptions {
-  avoidTolls: boolean; // Simplified option
 }
