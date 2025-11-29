@@ -60,6 +60,7 @@ export const getRouteAlternatives = async (start: LocationData, end: LocationDat
 
     try {
         const res = await fetch(url);
+        if (!res.ok) throw new Error("OSRM Fetch Failed");
         const data = await res.json();
         if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) return null;
         
@@ -73,6 +74,7 @@ export const getRouteAlternatives = async (start: LocationData, end: LocationDat
             color: type === 'fastest' ? '#3b82f6' : '#10b981' // Blue vs Green
         };
     } catch (e) {
+        console.warn(`Routing failed for ${type}`, e);
         return null;
     }
   };

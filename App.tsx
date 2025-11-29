@@ -97,8 +97,13 @@ const App: React.FC = () => {
     };
     initLocation();
 
+    // Cleanup: Destroy map on unmount to prevent "Map container is already initialized"
     return () => {
         if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current);
+        if (mapRef.current) {
+            mapRef.current.remove();
+            mapRef.current = null;
+        }
     };
   }, []);
 
