@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Navigation, Search, CloudRain, X, Mountain, LocateFixed, Coffee, ArrowUpRight, RefreshCw, ThermometerSun, Wind, AlertTriangle, Fuel, Camera, Utensils, Radio, Play, Pause, Music, Compass, Activity, Gauge, Cloud, Sun, CloudFog, CloudLightning, Snowflake, Droplets, ArrowRight } from 'lucide-react';
+import { MapPin, Navigation, Search, CloudRain, X, Mountain, LocateFixed, Coffee, ArrowUpRight, RefreshCw, ThermometerSun, Wind, AlertTriangle, Fuel, Camera, Utensils, Radio, Play, Pause, Music, Compass, Activity, Gauge, Cloud, Sun, CloudFog, CloudLightning, Snowflake, Droplets, ArrowRight, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { LocationData, RouteAnalysis, WeatherData, RouteAlternative, ElevationStats, PoiData, RadioStation } from './types';
 import { searchLocation, getIpLocation, getRouteAlternatives, getWeatherForPoint, getElevationProfile, findPoisAlongRoute, getRadioStations } from './services/api';
 import { analyzeRouteStatic } from './services/geminiService';
@@ -32,14 +32,35 @@ const getCompassDirection = (deg: number) => {
 
 // Map WMO codes to Icon and Description
 const getWeatherInfo = (code: number) => {
-    if (code === 0) return { icon: Sun, label: "Açık", color: "text-yellow-400" };
-    if (code >= 1 && code <= 3) return { icon: Cloud, label: "Bulutlu", color: "text-gray-300" };
-    if (code === 45 || code === 48) return { icon: CloudFog, label: "Sisli", color: "text-slate-400" };
-    if (code >= 51 && code <= 67) return { icon: CloudRain, label: "Yağmurlu", color: "text-blue-400" };
-    if (code >= 71 && code <= 77) return { icon: Snowflake, label: "Karlı", color: "text-cyan-200" };
-    if (code >= 80 && code <= 82) return { icon: CloudRain, label: "Sağanak", color: "text-blue-500" };
-    if (code >= 95) return { icon: CloudLightning, label: "Fırtına", color: "text-purple-400" };
-    return { icon: Sun, label: "Açık", color: "text-yellow-400" };
+    if (code === 0) return { icon: Sun, label: "Açık", color: "text-yellow-400", bg: "bg-yellow-500/20", border: "border-yellow-500" };
+    if (code >= 1 && code <= 3) return { icon: Cloud, label: "Bulutlu", color: "text-gray-300", bg: "bg-gray-500/20", border: "border-gray-500" };
+    if (code === 45 || code === 48) return { icon: CloudFog, label: "Sisli", color: "text-slate-400", bg: "bg-slate-500/20", border: "border-slate-500" };
+    if (code >= 51 && code <= 67) return { icon: CloudRain, label: "Yağmurlu", color: "text-blue-400", bg: "bg-blue-600/30", border: "border-blue-500" };
+    if (code >= 71 && code <= 77) return { icon: Snowflake, label: "Karlı", color: "text-cyan-200", bg: "bg-cyan-500/30", border: "border-cyan-500" };
+    if (code >= 80 && code <= 82) return { icon: CloudRain, label: "Sağanak", color: "text-blue-500", bg: "bg-blue-700/40", border: "border-blue-600" };
+    if (code >= 95) return { icon: CloudLightning, label: "Fırtına", color: "text-purple-400", bg: "bg-purple-600/40", border: "border-purple-600" };
+    return { icon: Sun, label: "Açık", color: "text-yellow-400", bg: "bg-yellow-500/20", border: "border-yellow-500" };
+};
+
+// Helper to sample coordinates based on distance (e.g., every 5km)
+const sampleCoordinatesByDistance = (coords: [number, number][], intervalKm: number) => {
+    if (coords.length === 0) return [];
+    const sampled = [coords[0]];
+    let lastP = coords[0];
+
+    for (let i = 1; i < coords.length; i++) {
+        const dist = getDistanceFromLatLonInKm(lastP[1], lastP[0], coords[i][1], coords[i][0]);
+        if (dist >= intervalKm) {
+            sampled.push(coords[i]);
+            lastP = coords[i];
+        }
+    }
+    // Always include end point if not close
+    const endP = coords[coords.length - 1];
+    const distToEnd = getDistanceFromLatLonInKm(lastP[1], lastP[0], endP[1], endP[0]);
+    if (distToEnd > 1) sampled.push(endP);
+    
+    return sampled;
 };
 
 const ElevationChart: React.FC<{ stats: ElevationStats }> = ({ stats }) => {
@@ -79,28 +100,27 @@ const ElevationChart: React.FC<{ stats: ElevationStats }> = ({ stats }) => {
 };
 
 // Component for Weather Card in Bottom Sheet
-const WeatherTimelineCard: React.FC<{ weather: WeatherData; index: number; total: number }> = ({ weather, index, total }) => {
+const WeatherTimelineCard: React.FC<{ weather: WeatherData; index: number; total: number; distFromStart: number }> = ({ weather, index, total, distFromStart }) => {
     const { icon: Icon, label, color } = getWeatherInfo(weather.weatherCode);
-    const progress = Math.round((index / (total - 1)) * 100);
     
     return (
-        <div className="flex-none w-24 bg-white/5 rounded-2xl p-3 flex flex-col items-center justify-between border border-white/5 relative overflow-hidden group">
+        <div className="flex-none w-28 bg-white/5 rounded-2xl p-3 flex flex-col items-center justify-between border border-white/5 relative overflow-hidden group">
             <div className="text-[9px] text-white/40 font-bold uppercase tracking-wider mb-1">
-                {index === 0 ? "Başlangıç" : index === total - 1 ? "Varış" : `%${progress} Yol`}
+                {index === 0 ? "Başlangıç" : `${Math.round(distFromStart)} km`}
             </div>
             <Icon size={24} className={`${color} drop-shadow-lg mb-1`} />
             <div className="text-lg font-bold text-white leading-none">{Math.round(weather.temp)}°</div>
-            <div className="text-[9px] text-white/60 font-medium truncate w-full text-center mt-0.5">{label}</div>
+            <div className="text-[10px] text-white/60 font-medium truncate w-full text-center mt-0.5">{label}</div>
             
             {/* Wind & Rain Indicators */}
             <div className="flex gap-2 mt-2 w-full justify-center border-t border-white/5 pt-1">
                 {weather.rainProb > 0 && (
                     <div className="flex items-center gap-0.5 text-blue-400">
-                        <Droplets size={8} /> <span className="text-[9px] font-bold">%{weather.rainProb}</span>
+                        <Droplets size={10} /> <span className="text-[9px] font-bold">%{weather.rainProb}</span>
                     </div>
                 )}
                 <div className="flex items-center gap-0.5 text-white/50">
-                   <Wind size={8} /> <span className="text-[9px] font-bold">{Math.round(weather.windSpeed)}</span>
+                   <Wind size={10} /> <span className="text-[9px] font-bold">{Math.round(weather.windSpeed)}</span>
                 </div>
             </div>
         </div>
@@ -121,6 +141,7 @@ const App: React.FC = () => {
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number>(0);
   const [analysis, setAnalysis] = useState<RouteAnalysis | null>(null);
   const [weatherPoints, setWeatherPoints] = useState<WeatherData[]>([]);
+  const [upcomingWeather, setUpcomingWeather] = useState<{ point: WeatherData, dist: number } | null>(null);
   
   // POI & Radio
   const [pois, setPois] = useState<PoiData[]>([]);
@@ -192,7 +213,6 @@ const App: React.FC = () => {
     }
 
     const handleOrientation = (event: DeviceOrientationEvent) => {
-        // Compass
         let compass = 0;
         if ((event as any).webkitCompassHeading) {
              compass = (event as any).webkitCompassHeading;
@@ -201,7 +221,6 @@ const App: React.FC = () => {
         }
         compassHeadingRef.current = compass;
         
-        // Lean Angle (Gamma is usually left/right tilt in portrait)
         if (event.gamma !== null) {
             setLeanAngle(Math.round(event.gamma));
         }
@@ -337,6 +356,28 @@ const App: React.FC = () => {
       } else if (traveledPolylineRef.current) {
           traveledPolylineRef.current.setLatLngs(traveled);
       }
+      
+      // Update Upcoming Weather Logic
+      if (weatherPoints.length > 0) {
+          // Find the next weather point that is at least 0.5km away but closest
+          let nextPoint = null;
+          let minFutureDist = Infinity;
+          
+          for(const wp of weatherPoints) {
+              const d = getDistanceFromLatLonInKm(lat, lng, wp.lat, wp.lng);
+              // Check if point is roughly "ahead" (simplistic check: we just check raw distance for points we know are on route)
+              // Since points are ordered, we can find the first one that is > 0.5km away
+              if (d > 0.5 && d < 20) { // Limit to 20km lookahead
+                 if (d < minFutureDist) {
+                     minFutureDist = d;
+                     nextPoint = wp;
+                 }
+              }
+          }
+          if (nextPoint) {
+              setUpcomingWeather({ point: nextPoint, dist: minFutureDist });
+          }
+      }
   };
 
   const drawRoutes = (routeList: RouteAlternative[], selectedIndex: number) => {
@@ -405,13 +446,18 @@ const App: React.FC = () => {
   };
 
   const analyzeSelectedRoute = async (route: RouteAlternative) => {
-    const pointsToSample = 5;
-    const step = Math.floor(route.coordinates.length / (pointsToSample + 1));
-    const weatherPromises: Promise<WeatherData>[] = [];
-    for (let i = 0; i <= pointsToSample; i++) {
-      const coord = route.coordinates[i * step];
-      if (coord) weatherPromises.push(getWeatherForPoint(coord[1], coord[0]));
-    }
+    // SAMPLE EVERY 5KM (or 10km if route is very long > 200km)
+    const routeLengthKm = route.distance / 1000;
+    const interval = routeLengthKm > 200 ? 10 : 5;
+    
+    const sampledCoords = sampleCoordinatesByDistance(route.coordinates.map(c => [c[1], c[0]]), interval);
+    
+    // Limit to max 12 requests to avoid API spam/rate limits
+    const finalSamples = sampledCoords.length > 12 
+        ? sampledCoords.filter((_, i) => i % Math.ceil(sampledCoords.length / 12) === 0) 
+        : sampledCoords;
+
+    const weatherPromises = finalSamples.map(coord => getWeatherForPoint(coord[0], coord[1]));
 
     const [weatherDataList, elevationStats] = await Promise.all([
         Promise.all(weatherPromises),
@@ -426,13 +472,9 @@ const App: React.FC = () => {
     markersRef.current = [];
     
     weatherDataList.forEach((w, idx) => {
-        // Skip start point to avoid cluttering user location
-        if (idx === 0) return;
+        if (idx === 0) return; // Skip start
 
         const { label, color: iconColor } = getWeatherInfo(w.weatherCode);
-        
-        // Custom HTML Marker for Detailed Weather
-        // Icons: Lucide SVGs embedded directly for Leaflet HTML
         const isRainy = w.rainProb > 40;
         const bgClass = isRainy ? 'bg-blue-900/90 border-blue-500' : 'bg-slate-900/90 border-slate-600';
         
@@ -599,6 +641,44 @@ const App: React.FC = () => {
     sheetMode === 'mid' ? 'h-[55dvh]' : 
     'h-[90dvh]';
 
+  // --- Dynamic Alert Content Generation ---
+  let alertContent = null;
+  if (isNavigating && upcomingWeather) {
+      const { point, dist } = upcomingWeather;
+      const { icon: WeatherIcon, label, color, bg, border } = getWeatherInfo(point.weatherCode);
+      const isDangerous = point.rainProb > 40 || point.windSpeed > 30;
+      
+      alertContent = (
+         <div className={`pointer-events-auto rounded-[28px] p-4 flex items-center justify-between border shadow-2xl backdrop-blur-3xl transition-all duration-500 animate-in slide-in-from-top-4 ${isDangerous ? 'bg-red-900/80 border-red-500' : 'bg-slate-900/80 border-white/20'}`}>
+             <div className="flex items-center gap-4">
+                 <div className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg border-2 ${isDangerous ? 'bg-red-500 border-white' : `${bg} ${border}`}`}>
+                    <WeatherIcon size={28} className={isDangerous ? 'text-white' : color.replace('text-', 'text-')} />
+                 </div>
+                 <div className="flex flex-col">
+                     <span className="text-[10px] uppercase font-black tracking-widest text-white/50 mb-0.5">
+                        {Math.round(dist)} KM SONRA
+                     </span>
+                     <span className={`text-2xl font-black uppercase leading-none ${isDangerous ? 'text-white' : 'text-white'}`}>
+                        {label}
+                     </span>
+                     <div className="flex gap-3 mt-1 text-xs font-bold text-white/70">
+                         {point.rainProb > 0 && <span>💧 %{point.rainProb}</span>}
+                         <span>💨 {Math.round(point.windSpeed)} km/s</span>
+                     </div>
+                 </div>
+             </div>
+             
+             {isDangerous ? (
+                 <div className="animate-pulse">
+                     <ShieldAlert size={32} className="text-red-400" />
+                 </div>
+             ) : (
+                 <ShieldCheck size={32} className="text-emerald-400 opacity-50" />
+             )}
+         </div>
+      );
+  }
+
   return (
     <div 
         ref={containerRef}
@@ -681,22 +761,30 @@ const App: React.FC = () => {
       {/* --- NAVIGATION MODE UI (COCKPIT DASHBOARD) --- */}
       {isNavigating && currentRoute && (
         <>
-            <div className="absolute top-6 left-4 right-16 z-50 flex justify-between pointer-events-none">
-                 <div className="bg-black/60 backdrop-blur-3xl border border-white/20 p-4 rounded-[28px] shadow-2xl flex items-center gap-4 flex-1 mr-2 pointer-events-auto">
-                    <div className="bg-green-500 w-12 h-12 rounded-full flex items-center justify-center text-black shadow-[0_0_15px_rgba(34,197,94,0.4)] animate-pulse">
-                        <ArrowUpRight size={28} strokeWidth={3} />
+            {/* HEADS UP DISPLAY / WEATHER ALERT CARD (TOP) */}
+            <div className="absolute top-6 left-4 right-16 z-50 pointer-events-none">
+                 {/* Main Navigation Info (Small) */}
+                 {!alertContent && (
+                    <div className="bg-black/60 backdrop-blur-3xl border border-white/20 p-4 rounded-[28px] shadow-2xl flex items-center gap-4 w-full pointer-events-auto transition-all animate-in fade-in">
+                        <div className="bg-green-500 w-12 h-12 rounded-full flex items-center justify-center text-black shadow-[0_0_15px_rgba(34,197,94,0.4)] animate-pulse">
+                            <ArrowUpRight size={28} strokeWidth={3} />
+                        </div>
+                        <div>
+                            <div className="text-3xl font-black text-white tracking-tight leading-none">{Math.round(currentRoute.distance / 1000)} <span className="text-sm text-white/50 font-medium">km</span></div>
+                            <div className="text-[10px] text-white/50 font-medium uppercase tracking-widest mt-1">Hedefe Kalan</div>
+                        </div>
                     </div>
-                    <div>
-                        <div className="text-3xl font-black text-white tracking-tight leading-none">{Math.round(currentRoute.distance / 1000)} <span className="text-sm text-white/50 font-medium">km</span></div>
-                        <div className="text-[10px] text-white/50 font-medium uppercase tracking-widest mt-1">Hedefe Kalan</div>
-                    </div>
-                 </div>
-                 <button onClick={stopNavigation} className="pointer-events-auto bg-red-600 hover:bg-red-500 text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg backdrop-blur-md transition-all active:scale-95 border-2 border-white/10">
+                 )}
+
+                 {/* DYNAMIC ALERT CARD (Replaces standard nav info if meaningful) */}
+                 {alertContent}
+
+                 <button onClick={stopNavigation} className="absolute -right-14 top-0 pointer-events-auto bg-red-600 hover:bg-red-500 text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg backdrop-blur-md transition-all active:scale-95 border-2 border-white/10">
                     <X size={24} strokeWidth={3}/>
                  </button>
             </div>
 
-            {/* PRO COCKPIT DASHBOARD */}
+            {/* PRO COCKPIT DASHBOARD (BOTTOM) */}
             <div className="absolute bottom-6 left-4 right-4 z-50 pointer-events-none flex justify-center">
                 <div className="bg-gradient-to-t from-black to-slate-900/90 backdrop-blur-2xl border border-white/10 rounded-[32px] p-2 shadow-[0_20px_60px_rgba(0,0,0,1)] pointer-events-auto w-full max-w-lg relative overflow-hidden">
                     {/* Glass Glare */}
@@ -855,11 +943,14 @@ const App: React.FC = () => {
                                     {/* WEATHER TIMELINE - NEW */}
                                     <div className="mb-4">
                                         <div className="flex items-center gap-2 text-[10px] text-blue-300 mb-2 uppercase font-bold tracking-wider px-1">
-                                            <Cloud size={12}/> Yol Boyu Hava Tahmini
+                                            <Cloud size={12}/> Yol Boyu Hava Tahmini (Her 5-10km)
                                         </div>
                                         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
                                             {weatherPoints.map((w, idx) => (
-                                                <WeatherTimelineCard key={idx} weather={w} index={idx} total={weatherPoints.length} />
+                                                <WeatherTimelineCard key={idx} weather={w} index={idx} total={weatherPoints.length} 
+                                                    // Calculate rough distance based on index (simplified)
+                                                    distFromStart={idx * (routes[selectedRouteIndex].distance / 1000 / (weatherPoints.length - 1))}
+                                                />
                                             ))}
                                         </div>
                                     </div>
