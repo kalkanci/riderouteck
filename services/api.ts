@@ -1,4 +1,26 @@
-import { LocationData, WeatherData, RouteAlternative, ElevationStats, PoiData } from "../types";
+import { LocationData, WeatherData, RouteAlternative, ElevationStats, PoiData, RadioStation } from "../types";
+
+// --- NEW: Radio Browser API (Public APIs) ---
+export const getRadioStations = async (tag: string): Promise<RadioStation[]> => {
+    try {
+        // Fetch top voted stations by tag
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        const res = await fetch(`https://de1.api.radio-browser.info/json/stations/bytag/${encodeURIComponent(tag)}?limit=15&order=votes&reverse=true`, {
+             signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (!res.ok) throw new Error("Radio fetch failed");
+        return await res.json();
+    } catch (e) {
+        console.warn("Radio API error, trying general fallback", e);
+        // Fallback to 'pop' if specific tag fails
+        if (tag !== 'pop') return getRadioStations('pop');
+        return [];
+    }
+};
 
 // Primary: Nominatim (OpenStreetMap) for POIs
 // Fallback: Open-Meteo Geocoding for Cities (Reliable)
@@ -31,9 +53,8 @@ export const searchLocation = async (query: string): Promise<LocationData[]> => 
 
   try {
     // 1. Try Nominatim (Best for POIs like "Benzinlik")
-    // Note: Nominatim is strict about User-Agent/Referer. Browsers handle Referer.
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout for primary
+    const timeoutId = setTimeout(() => controller.abort(), 3000); 
 
     const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5&accept-language=tr`, {
         signal: controller.signal
@@ -48,8 +69,6 @@ export const searchLocation = async (query: string): Promise<LocationData[]> => 
     return mapNominatimData(data);
 
   } catch (nominatimError) {
-    console.warn("Nominatim search failed or timed out, switching to Open-Meteo fallback:", nominatimError);
-
     try {
         // 2. Fallback to Open-Meteo (Reliable for Cities)
         const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=tr&format=json`);
@@ -61,38 +80,23 @@ export const searchLocation = async (query: string): Promise<LocationData[]> => 
         return mapOpenMeteoData(data.results);
 
     } catch (fallbackError) {
-        console.error("Search error: All providers failed", fallbackError);
         return [];
     }
   }
 };
 
-// Open-Meteo Reverse Geocoding / Nominatim Reverse
-export const getCityNameFromCoords = async (lat: number, lng: number): Promise<string> => {
-    try {
-        // Try Nominatim reverse first for better formatting
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=tr`);
-        if(res.ok) {
-            const data = await res.json();
-            return data.address.city || data.address.town || data.display_name.split(',')[0];
-        }
-        throw new Error("Nominatim reverse failed");
-    } catch {
-        // Fallback or simple formatted string
-        return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    }
-};
-
-// IPAPI for fallback location
+// --- UPDATED: GeoJS (Public APIs list) ---
+// More reliable than ipapi.co for free tier usage
 export const getIpLocation = async (): Promise<LocationData | null> => {
   try {
-    const res = await fetch('https://ipapi.co/json/');
+    const res = await fetch('https://get.geojs.io/v1/ip/geo.json');
+    if (!res.ok) throw new Error("GeoJS failed");
+    
     const data = await res.json();
-    if (data.error) return null;
     return {
       name: data.city,
-      lat: data.latitude,
-      lng: data.longitude,
+      lat: parseFloat(data.latitude),
+      lng: parseFloat(data.longitude),
       admin1: data.region
     };
   } catch (e) {
@@ -129,7 +133,6 @@ export const getRouteAlternatives = async (start: LocationData, end: LocationDat
             color: type === 'fastest' ? '#3b82f6' : '#10b981'
         };
     } catch (e) {
-        console.warn(`Routing failed for ${type}`, e);
         return null;
     }
   };
@@ -149,24 +152,18 @@ export const getRouteAlternatives = async (start: LocationData, end: LocationDat
   return results;
 };
 
-// New: Open-Meteo Elevation API
+// Open-Meteo Elevation API
 export const getElevationProfile = async (coordinates: [number, number][]): Promise<ElevationStats | null> => {
     if (coordinates.length < 2) return null;
-
-    // Sample points to avoid API limits (Open-Meteo free tier has constraints on request size)
-    // Take max 50 points evenly distributed
     const sampleSize = 50;
     const step = Math.ceil(coordinates.length / sampleSize);
     const sampledCoords = coordinates.filter((_, i) => i % step === 0);
-    
-    // Prepare Lat/Lng arrays for API
     const lats = sampledCoords.map(c => c[1]).join(',');
     const lngs = sampledCoords.map(c => c[0]).join(',');
 
     try {
         const res = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lngs}`);
         const data = await res.json();
-        
         if (!data.elevation || data.elevation.length === 0) return null;
 
         const elevations = data.elevation as number[];
@@ -174,18 +171,14 @@ export const getElevationProfile = async (coordinates: [number, number][]): Prom
         const max = Math.max(...elevations);
         const avg = elevations.reduce((a, b) => a + b, 0) / elevations.length;
         
-        // Calculate approx total gain (very rough estimation based on samples)
         let gain = 0;
         for(let i = 1; i < elevations.length; i++) {
-            if (elevations[i] > elevations[i-1]) {
-                gain += (elevations[i] - elevations[i-1]);
-            }
+            if (elevations[i] > elevations[i-1]) gain += (elevations[i] - elevations[i-1]);
         }
 
         return { min, max, avg, gain, points: elevations };
 
     } catch (e) {
-        console.error("Elevation API error", e);
         return null;
     }
 };
@@ -214,29 +207,18 @@ export const getWeatherForPoint = async (lat: number, lng: number): Promise<Weat
       hourlyRainForecast: hourlyRainForecast
     };
   } catch (e) {
-    console.error("Weather error", e);
     return { lat, lng, temp: 0, rain: 0, rainProb: 0, windSpeed: 0, windDirection: 0, weatherCode: 0, hourlyRainForecast: [] };
   }
 };
 
 // Overpass API for POIs
 export const findPoisAlongRoute = async (coordinates: [number, number][], type: 'fuel' | 'food' | 'sight'): Promise<PoiData[]> => {
-    // 1. Sample the route to avoid creating a massive query. 
-    // Take one point roughly every ~20 points from OSRM result (assuming dense geometry)
-    // OSRM usually returns plenty of points.
-    
     if (!coordinates || coordinates.length === 0) return [];
 
-    const sampleRate = Math.max(10, Math.floor(coordinates.length / 15)); // Target ~15 search bubbles
+    const sampleRate = Math.max(10, Math.floor(coordinates.length / 15)); 
     const sampledCoords = coordinates.filter((_, i) => i % sampleRate === 0);
-    
-    // Add endpoint to ensure we search near destination
     sampledCoords.push(coordinates[coordinates.length - 1]);
 
-    // 2. Build Overpass Query
-    // Query format: (node[amenity=fuel](around:5000,lat,lon); ... ); out;
-    // Radius: 3000 meters (3km)
-    
     let filters = '';
     if (type === 'fuel') filters = '["amenity"="fuel"]';
     else if (type === 'food') filters = '["amenity"~"restaurant|cafe|fast_food"]';
@@ -246,11 +228,10 @@ export const findPoisAlongRoute = async (coordinates: [number, number][], type: 
     let queryBody = '';
     
     sampledCoords.forEach(c => {
-        // Overpass uses (lat, lon), OSRM is [lng, lat]
         queryBody += `node${filters}(around:${radius},${c[1]},${c[0]});`;
     });
 
-    const query = `[out:json][timeout:25];(${queryBody});out body 20;>;out skel qt;`; // Limit to 20 results total for performance
+    const query = `[out:json][timeout:25];(${queryBody});out body 20;>;out skel qt;`;
 
     try {
         const res = await fetch('https://overpass-api.de/api/interpreter', {
@@ -259,7 +240,6 @@ export const findPoisAlongRoute = async (coordinates: [number, number][], type: 
         });
 
         if (!res.ok) throw new Error("Overpass API error");
-        
         const data = await res.json();
         
         return data.elements.map((el: any) => ({
@@ -271,7 +251,6 @@ export const findPoisAlongRoute = async (coordinates: [number, number][], type: 
         }));
 
     } catch (e) {
-        console.warn("POI Fetch failed", e);
         return [];
     }
 };

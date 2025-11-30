@@ -77,12 +77,23 @@ export const analyzeRouteStatic = async (
       pitStops.push({ type: "Kahve Dünyası", locationDescription: "Dinlenme Tesisi", reason: "Kafein takviyesi." });
   }
 
-  // 7. Playlist Vibe
-  let playlistVibe = "Popüler Radyo";
-  if (routeType === 'scenic') playlistVibe = "Akustik & Chill";
-  else if (avgTemp > 25) playlistVibe = "Yaz Enerjisi / Reggaeton";
-  else if (riskLevel === 'Yüksek') playlistVibe = "Odaklanma / Deep House";
-  else playlistVibe = "Classic Rock / Yol Şarkıları";
+  // 7. Playlist Vibe & Tag
+  let playlistVibe = "Popüler";
+  let playlistTag = "pop";
+
+  if (routeType === 'scenic') {
+      playlistVibe = "Akustik & Chill";
+      playlistTag = "chillout";
+  } else if (avgTemp > 25) {
+      playlistVibe = "Yaz Enerjisi";
+      playlistTag = "house";
+  } else if (riskLevel === 'Yüksek') {
+      playlistVibe = "Odaklanma";
+      playlistTag = "deep house";
+  } else {
+      playlistVibe = "Rock / Yol";
+      playlistTag = "classic rock";
+  }
 
   return {
     riskLevel,
@@ -95,6 +106,7 @@ export const analyzeRouteStatic = async (
     segments,
     pitStops,
     playlistVibe,
+    playlistTag,
     elevationStats: elevation
   };
 };

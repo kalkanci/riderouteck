@@ -33,6 +33,15 @@ export interface PoiData {
   type: 'fuel' | 'food' | 'sight';
 }
 
+export interface RadioStation {
+  stationuuid: string;
+  name: string;
+  url_resolved: string;
+  favicon: string;
+  tags: string;
+  country: string;
+}
+
 export interface RouteSegment {
   name: string; // e.g. "İstanbul Çıkışı - Tem Otoyolu"
   description: string; // "Yoğun trafik, dikkatli şerit değişimi."
@@ -61,10 +70,11 @@ export interface RouteAnalysis {
   gearAdvice: string;
   roadCondition: string; 
   scenicScore: string;
-  // New Gemini Features
+  // New Features
   segments: RouteSegment[];
   pitStops: PitStop[];
-  playlistVibe: string;
+  playlistVibe: string; // Used for Radio Tag
+  playlistTag: string; // Technical tag for API
   elevationStats?: ElevationStats; // Added structured data
 }
 
