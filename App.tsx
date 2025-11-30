@@ -649,16 +649,16 @@ const App: React.FC = () => {
       const isDangerous = point.rainProb > 40 || point.windSpeed > 30;
       
       alertContent = (
-         <div className={`pointer-events-auto rounded-[28px] p-4 flex items-center justify-between border shadow-2xl backdrop-blur-3xl transition-all duration-500 animate-in slide-in-from-top-4 ${isDangerous ? 'bg-red-900/80 border-red-500' : 'bg-slate-900/80 border-white/20'}`}>
+         <div className={`pointer-events-auto rounded-[24px] p-4 flex items-center justify-between border shadow-2xl backdrop-blur-3xl transition-all duration-500 animate-in slide-in-from-top-4 w-full ${isDangerous ? 'bg-red-900/80 border-red-500' : 'bg-slate-900/80 border-white/20'}`}>
              <div className="flex items-center gap-4">
-                 <div className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg border-2 ${isDangerous ? 'bg-red-500 border-white' : `${bg} ${border}`}`}>
-                    <WeatherIcon size={28} className={isDangerous ? 'text-white' : color.replace('text-', 'text-')} />
+                 <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg border-2 ${isDangerous ? 'bg-red-500 border-white' : `${bg} ${border}`}`}>
+                    <WeatherIcon size={24} className={isDangerous ? 'text-white' : color.replace('text-', 'text-')} />
                  </div>
                  <div className="flex flex-col">
                      <span className="text-[10px] uppercase font-black tracking-widest text-white/50 mb-0.5">
                         {Math.round(dist)} KM SONRA
                      </span>
-                     <span className={`text-2xl font-black uppercase leading-none ${isDangerous ? 'text-white' : 'text-white'}`}>
+                     <span className={`text-xl font-black uppercase leading-none ${isDangerous ? 'text-white' : 'text-white'}`}>
                         {label}
                      </span>
                      <div className="flex gap-3 mt-1 text-xs font-bold text-white/70">
@@ -670,10 +670,10 @@ const App: React.FC = () => {
              
              {isDangerous ? (
                  <div className="animate-pulse">
-                     <ShieldAlert size={32} className="text-red-400" />
+                     <ShieldAlert size={28} className="text-red-400" />
                  </div>
              ) : (
-                 <ShieldCheck size={32} className="text-emerald-400 opacity-50" />
+                 <ShieldCheck size={28} className="text-emerald-400 opacity-50" />
              )}
          </div>
       );
@@ -762,21 +762,20 @@ const App: React.FC = () => {
       {isNavigating && currentRoute && (
         <>
             {/* HEADS UP DISPLAY / WEATHER ALERT CARD (TOP) */}
-            <div className="absolute top-6 left-4 right-16 z-50 pointer-events-none">
-                 {/* Main Navigation Info (Small) */}
-                 {!alertContent && (
-                    <div className="bg-black/60 backdrop-blur-3xl border border-white/20 p-4 rounded-[28px] shadow-2xl flex items-center gap-4 w-full pointer-events-auto transition-all animate-in fade-in">
-                        <div className="bg-green-500 w-12 h-12 rounded-full flex items-center justify-center text-black shadow-[0_0_15px_rgba(34,197,94,0.4)] animate-pulse">
-                            <ArrowUpRight size={28} strokeWidth={3} />
-                        </div>
-                        <div>
-                            <div className="text-3xl font-black text-white tracking-tight leading-none">{Math.round(currentRoute.distance / 1000)} <span className="text-sm text-white/50 font-medium">km</span></div>
-                            <div className="text-[10px] text-white/50 font-medium uppercase tracking-widest mt-1">Hedefe Kalan</div>
-                        </div>
+            <div className="absolute top-6 left-4 right-16 z-50 flex flex-col gap-3 pointer-events-none">
+                 
+                 {/* 1. MAIN NAVIGATION INFO (FIXED TOP) */}
+                 <div className="bg-[#0a0a0a]/90 backdrop-blur-3xl border border-white/20 p-4 rounded-[28px] shadow-2xl flex items-center gap-4 w-full pointer-events-auto ring-1 ring-white/10 animate-in fade-in slide-in-from-top-4">
+                    <div className="bg-green-500 w-12 h-12 rounded-full flex items-center justify-center text-black shadow-[0_0_20px_rgba(34,197,94,0.5)] animate-pulse">
+                        <ArrowUpRight size={28} strokeWidth={3} />
                     </div>
-                 )}
+                    <div>
+                        <div className="text-3xl font-black text-white tracking-tight leading-none">{Math.round(currentRoute.distance / 1000)} <span className="text-sm text-white/50 font-medium">km</span></div>
+                        <div className="text-[10px] text-white/50 font-bold uppercase tracking-widest mt-1">Hedefe Kalan</div>
+                    </div>
+                 </div>
 
-                 {/* DYNAMIC ALERT CARD (Replaces standard nav info if meaningful) */}
+                 {/* 2. DYNAMIC WEATHER ALERT CARD (STACKED BELOW) */}
                  {alertContent}
 
                  <button onClick={stopNavigation} className="absolute -right-14 top-0 pointer-events-auto bg-red-600 hover:bg-red-500 text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg backdrop-blur-md transition-all active:scale-95 border-2 border-white/10">
