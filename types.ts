@@ -1,3 +1,4 @@
+
 // Global declaration for Leaflet loaded via CDN
 declare global {
   interface Window {
@@ -78,6 +79,18 @@ export interface RouteAnalysis {
   elevationStats?: ElevationStats; // Added structured data
 }
 
+export interface RouteStep {
+  maneuver: {
+      location: [number, number];
+      type: string;
+      modifier?: string;
+  };
+  name: string;
+  duration: number;
+  distance: number;
+  instruction: string; // Calculated Turkish instruction
+}
+
 export interface RouteAlternative {
   type: 'fastest' | 'scenic';
   name: string; // "Otoban / Hızlı" or "Köy Yolu / Manzaralı"
@@ -85,7 +98,9 @@ export interface RouteAlternative {
   distance: number; // meters
   duration: number; // seconds
   color: string;
-  summary?: string;
+  tags: string[]; // e.g. ["Ücretli", "Hızlı"] or ["Ücretsiz", "Virajlı"]
+  description: string; // Brief description for the card
+  steps: RouteStep[]; // Turn-by-turn steps
 }
 
 export interface RouteGeometry {
