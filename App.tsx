@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Navigation, Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Zap, Droplets, Gauge, Thermometer, TrendingUp, ShieldCheck, Mountain, Compass, Timer, Activity, Locate, RotateCcw, Crosshair } from 'lucide-react';
-import { LocationData, WeatherData, RouteAlternative } from './types';
-import { searchLocation, getRouteAlternatives, getWeatherForPoint, reverseGeocode } from './services/api';
+import { MapPin, Navigation, Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Zap, Droplets, Gauge, Thermometer, TrendingUp, ShieldCheck, Mountain, Compass, Timer, Activity, Locate, RotateCcw, Crosshair, ChevronsRight, Split, Target, MoveUpRight, MoveDownRight, Minus, Music, Volume2, Pause, Play, Radio } from 'lucide-react';
+import { LocationData, WeatherData, RouteAlternative, ElevationStats, RadioStation } from './types';
+import { searchLocation, getRouteAlternatives, getWeatherForPoint, getElevationProfile, getRadioStations } from './services/api';
 
 // --- UTILS ---
 const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -23,7 +23,7 @@ const getWindDirectionArrow = (deg: number) => (
     <ArrowUp size={18} className="text-slate-400" style={{ transform: `rotate(${deg}deg)` }} />
 );
 
-const sampleRoutePoints = (coords: [number, number][], intervalKm: number = 20) => {
+const sampleRoutePoints = (coords: [number, number][], intervalKm: number = 10) => {
     if (!coords.length) return [];
     const points = [{ coord: coords[0], dist: 0 }];
     let last = coords[0];
@@ -41,212 +41,224 @@ const sampleRoutePoints = (coords: [number, number][], intervalKm: number = 20) 
     return points;
 };
 
-// --- NEW COMPONENT: LEAN ANGLE GAUGE ---
-const LeanGauge = ({ angle, maxLeft, maxRight }: { angle: number, maxLeft: number, maxRight: number }) => {
-    // angle: negative is left, positive is right (usually)
-    // We visualize it as a curved bar or rotating element
-    
-    // Clamp visual angle to avoid UI breaking (max 60 degrees usually for street bikes)
-    const visualAngle = Math.max(-55, Math.min(55, angle));
+// --- COMPONENTS ---
+
+const LiveMiniMap = ({ coordinates, color, userPos }: { coordinates: [number, number][], color: string, userPos: [number, number] | null }) => {
+    if (!coordinates || coordinates.length < 2) return null;
+
+    let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+    coordinates.forEach(c => {
+        const [lng, lat] = c;
+        if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
+        if (lng < minLng) minLng = lng; if (lng > maxLng) maxLng = lng;
+    });
+
+    const latPad = (maxLat - minLat) * 0.1; const lngPad = (maxLng - minLng) * 0.1;
+    minLat -= latPad; maxLat += latPad; minLng -= lngPad; maxLng += lngPad;
+    const width = 300; const height = 120;
+
+    const mapX = (lng: number) => ((lng - minLng) / (maxLng - minLng)) * width;
+    const mapY = (lat: number) => height - ((lat - minLat) / (maxLat - minLat)) * height;
+
+    const points = coordinates.map(c => `${mapX(c[0])},${mapY(c[1])}`).join(' ');
 
     return (
-        <div className="relative flex flex-col items-center justify-center w-full h-24 mt-2">
-             {/* Background Arc */}
-             <div className="absolute top-4 w-48 h-24 border-t-[6px] border-r-[6px] border-l-[6px] border-slate-800 rounded-t-full"></div>
-             
-             {/* Tick Marks */}
-             <div className="absolute top-4 w-48 h-24 rounded-t-full overflow-hidden opacity-30">
-                 <div className="absolute top-0 left-1/2 w-0.5 h-3 bg-white -translate-x-1/2"></div> {/* 0 */}
-                 <div className="absolute top-2 left-[20%] w-0.5 h-2 bg-white -rotate-45 origin-bottom"></div> {/* Left 45 */}
-                 <div className="absolute top-2 right-[20%] w-0.5 h-2 bg-white rotate-45 origin-bottom"></div> {/* Right 45 */}
-             </div>
+        <div className="w-full h-32 bg-slate-900/50 rounded-xl overflow-hidden relative border border-slate-700/50 mt-3">
+            <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="opacity-80">
+                <polyline points={points} fill="none" stroke={color} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]" />
+                {userPos && (
+                    <circle cx={mapX(userPos[1])} cy={mapY(userPos[0])} r="6" fill="#ef4444" stroke="white" strokeWidth="2" className="animate-pulse" />
+                )}
+            </svg>
+            <div className="absolute top-2 left-2 text-[9px] text-slate-500 font-bold uppercase tracking-widest bg-slate-900/80 px-2 py-0.5 rounded">Canlı Takip</div>
+        </div>
+    );
+};
 
-             {/* Dynamic Needle / Bike Indicator */}
-             <div 
-                className="absolute top-6 w-1 h-16 origin-bottom transition-transform duration-100 ease-out z-10"
-                style={{ transform: `rotate(${visualAngle}deg)` }}
-             >
-                 <div className="w-full h-full bg-gradient-to-t from-transparent via-cyan-500 to-cyan-400 rounded-full shadow-[0_0_10px_rgba(34,211,238,0.8)]"></div>
-                 {/* Bike Icon at tip */}
-                 <div className="absolute -top-4 -left-3 text-cyan-400 transform -rotate-180">
-                     <Navigation size={28} fill="currentColor" />
+// Simplified Lean Gauge (Just Angle & Wings)
+const LeanGauge = ({ angle, onCalibrate }: { angle: number, onCalibrate: () => void }) => {
+    const absAngle = Math.abs(angle);
+    const isLeft = angle < 0;
+    const fillPercent = Math.min(absAngle / 50, 1) * 100;
+    
+    let barColor = "bg-emerald-500";
+    if (absAngle > 25) barColor = "bg-amber-400";
+    if (absAngle > 40) barColor = "bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.8)]";
+
+    return (
+        <div className="relative flex flex-col items-center justify-center w-full h-24 z-10">
+             {/* Center Readout */}
+             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-20">
+                 <div className="text-4xl font-black text-white italic tracking-tighter tabular-nums drop-shadow-md">
+                     {absAngle.toFixed(0)}<span className="text-sm text-slate-400 not-italic">°</span>
+                 </div>
+                 <div onClick={onCalibrate} className="text-[9px] text-slate-600 font-bold uppercase tracking-widest cursor-pointer active:text-cyan-400 hover:text-white transition-colors">
+                     SIFIRLA
                  </div>
              </div>
 
-             {/* Digital Readout */}
-             <div className="absolute -bottom-2 flex justify-between w-full px-8 text-xs font-bold font-mono">
-                 <div className="text-left">
-                     <div className="text-slate-500 text-[9px]">MAX L</div>
-                     <div className="text-emerald-400">{Math.round(maxLeft)}°</div>
+             {/* Wings Container */}
+             <div className="w-full flex justify-between items-center px-2 opacity-90">
+                 <div className="flex-1 h-3 bg-slate-800 rounded-l-full relative overflow-hidden transform skew-x-12 mr-2 border border-slate-700">
+                     <div className={`absolute top-0 bottom-0 right-0 ${isLeft ? barColor : 'bg-transparent'} transition-all duration-100 ease-out`} style={{ width: isLeft ? `${fillPercent}%` : '0%' }}></div>
                  </div>
-                 
-                 <div className="text-center z-20 bg-[#0b0f19] px-2 -mt-4">
-                      <div className="text-2xl font-black text-white">{Math.abs(Math.round(angle))}°</div>
-                 </div>
-
-                 <div className="text-right">
-                     <div className="text-slate-500 text-[9px]">MAX R</div>
-                     <div className="text-emerald-400">{Math.round(maxRight)}°</div>
+                 <div className="w-20"></div>
+                 <div className="flex-1 h-3 bg-slate-800 rounded-r-full relative overflow-hidden transform -skew-x-12 ml-2 border border-slate-700">
+                     <div className={`absolute top-0 bottom-0 left-0 ${!isLeft ? barColor : 'bg-transparent'} transition-all duration-100 ease-out`} style={{ width: !isLeft ? `${fillPercent}%` : '0%' }}></div>
                  </div>
              </div>
         </div>
     );
 };
 
-// 1. DASHBOARD HEADER (Telemetry Cockpit)
-const DashboardHeader = ({ 
-    speed, 
-    isDriving, 
-    onToggleDrive, 
-    altitude, 
-    heading, 
-    accuracy,
-    tripTime,
-    leanAngle,
-    maxLean
-}: { 
-    speed: number, 
-    isDriving: boolean, 
-    onToggleDrive: () => void,
-    altitude: number | null,
-    heading: number | null,
-    accuracy: number,
-    tripTime: string,
-    leanAngle: number,
-    maxLean: { left: number, right: number }
-}) => (
-    <div className="flex-none bg-[#0b0f19] border-b border-slate-800 pb-2 pt-4 px-4 z-50 shadow-2xl relative overflow-hidden">
-        {/* Ambient Glow */}
-        <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-1/2 bg-cyan-500/10 blur-3xl rounded-full transition-opacity duration-700 ${isDriving ? 'opacity-100' : 'opacity-0'}`}></div>
+// --- CO-PILOT HUD CARD (Redesigned) ---
+interface NextSegmentStats {
+    asphalt: 'dry' | 'wet' | 'slippery';
+    elevation: 'flat' | 'climb' | 'descent';
+    slope: number;
+    weatherCode: number;
+    windSpeed: number;
+}
 
-        <div className="grid grid-cols-3 gap-2 relative z-10 items-start">
-            
-            {/* LEFT: SPEED */}
-            <div className="col-span-1 flex flex-col justify-start pt-2">
-                <div className="flex items-baseline">
-                    <span className="text-6xl font-black text-white leading-none tracking-tighter tabular-nums drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-                        {speed}
-                    </span>
-                </div>
-                <div className="text-xs font-black text-cyan-500 tracking-widest mt-1">KM/H</div>
-                
-                <div className="mt-4 flex flex-col space-y-1">
-                     <div className="flex items-center gap-2 text-slate-400">
-                        <Mountain size={14} className={altitude && altitude > 500 ? "text-amber-400" : "text-slate-500"} />
-                        <span className="text-xs font-bold font-mono text-white">{altitude ? Math.round(altitude) : '0'}m</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-slate-400">
-                        <Compass size={14} style={{ transform: `rotate(${heading || 0}deg)` }} className="text-cyan-500 transition-transform duration-500" />
-                        <span className="text-xs font-bold font-mono text-white">{heading ? Math.round(heading) : '0'}°</span>
+const CoPilotCard = ({ stats }: { stats: NextSegmentStats | null }) => {
+    if (!stats) return (
+        <div className="mx-4 mt-2 h-20 bg-slate-900/50 rounded-xl flex items-center justify-center border border-slate-800">
+            <span className="text-xs text-slate-500 animate-pulse">SONRAKİ 5KM ANALİZ EDİLİYOR...</span>
+        </div>
+    );
+
+    const isRisky = stats.asphalt !== 'dry' || stats.windSpeed > 30;
+    const asphaltColor = stats.asphalt === 'dry' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border-rose-500/30';
+    const windColor = stats.windSpeed > 25 ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-slate-800 text-slate-300 border-slate-700';
+
+    return (
+        <div className="mx-4 mt-2 grid grid-cols-12 gap-2">
+            {/* Header / Distance */}
+            <div className="col-span-3 bg-slate-800 rounded-xl flex flex-col justify-center items-center border border-slate-700">
+                <span className="text-[9px] text-slate-500 font-bold tracking-widest">ÖNÜNDEKİ</span>
+                <span className="text-2xl font-black text-white italic">5 KM</span>
+            </div>
+
+            {/* Asphalt (Critical) */}
+            <div className={`col-span-9 rounded-xl border flex items-center px-4 relative overflow-hidden ${asphaltColor}`}>
+                <div className="z-10 flex items-center gap-3">
+                    {stats.asphalt === 'dry' ? <Activity size={24} /> : <Droplets size={24} />}
+                    <div className="flex flex-col">
+                        <span className="text-[9px] font-bold opacity-70 uppercase tracking-wider">ZEMİN DURUMU</span>
+                        <span className="text-xl font-black italic uppercase leading-none">
+                            {stats.asphalt === 'dry' ? 'KURU VE TEMİZ' : stats.asphalt === 'wet' ? 'ISLAK ZEMİN' : 'DİKKAT KAYGAN'}
+                        </span>
                     </div>
                 </div>
             </div>
 
-            {/* CENTER: LEAN ANGLE (NEW) */}
-            <div className="col-span-1 flex justify-center">
-                <LeanGauge angle={leanAngle} maxLeft={maxLean.left} maxRight={maxLean.right} />
+            {/* Secondary Stats Row */}
+            <div className={`col-span-6 rounded-xl border flex items-center justify-between px-3 py-2 ${windColor}`}>
+                <div className="flex flex-col">
+                     <span className="text-[9px] font-bold opacity-70 uppercase">RÜZGAR</span>
+                     <span className="text-lg font-black leading-none">{Math.round(stats.windSpeed)} <span className="text-[10px]">KM/H</span></span>
+                </div>
+                {getWeatherIcon(stats.weatherCode, 24)}
             </div>
 
-            {/* RIGHT: CONTROLS */}
-            <div className="col-span-1 flex flex-col items-end gap-3 pt-1">
-                 <div className="flex items-center gap-2 bg-slate-900/80 p-1 pr-2 pl-2 rounded-full border border-slate-800">
-                     <div className="flex flex-col items-end">
-                         <div className="flex gap-0.5 h-2">
-                             {[1,2,3,4].map(b => (
-                                 <div key={b} className={`w-1 rounded-sm ${accuracy > 0 && accuracy <= (50/b) ? 'bg-emerald-400' : 'bg-slate-700'}`}></div>
-                             ))}
-                         </div>
-                     </div>
-                     <div className={`w-2 h-2 rounded-full ${isDriving ? 'bg-red-500 animate-ping' : 'bg-emerald-500'}`}></div>
+            <div className="col-span-6 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-between px-3 py-2 text-slate-300">
+                <div className="flex flex-col">
+                     <span className="text-[9px] font-bold opacity-70 uppercase">EĞİM</span>
+                     <span className="text-lg font-black leading-none text-white">%{stats.slope} <span className="text-[10px]">{stats.elevation === 'climb' ? 'ÇIKIŞ' : stats.elevation === 'descent' ? 'İNİŞ' : 'DÜZ'}</span></span>
+                </div>
+                {stats.elevation === 'climb' ? <MoveUpRight size={24} /> : stats.elevation === 'descent' ? <MoveDownRight size={24} /> : <Minus size={24} />}
+            </div>
+        </div>
+    );
+};
+
+// --- MOTO RADIO PLAYER ---
+const MotoRadio = ({ routeType }: { routeType: 'fastest' | 'scenic' | null }) => {
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const [station, setStation] = useState<RadioStation | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [volume, setVolume] = useState(0.8);
+
+    useEffect(() => {
+        if (!routeType) return;
+        const tag = routeType === 'scenic' ? 'chillout' : 'house';
+        
+        getRadioStations(tag).then(stations => {
+            if (stations.length > 0) {
+                // Pick a random station from top 5
+                const rand = Math.floor(Math.random() * Math.min(5, stations.length));
+                setStation(stations[rand]);
+            }
+        });
+    }, [routeType]);
+
+    const togglePlay = () => {
+        if (!audioRef.current) return;
+        if (isPlaying) {
+            audioRef.current.pause();
+        } else {
+            audioRef.current.play().catch(e => console.error("Playback failed", e));
+        }
+        setIsPlaying(!isPlaying);
+    };
+
+    if (!station) return null;
+
+    return (
+        <div className="absolute bottom-6 right-6 z-50 flex flex-col items-end animate-in fade-in slide-in-from-bottom duration-700">
+            <audio ref={audioRef} src={station.url_resolved} crossOrigin="anonymous" loop={false} />
+            <div className="flex items-center gap-3 bg-slate-900/90 border border-slate-700 backdrop-blur-md p-2 pl-4 rounded-full shadow-2xl">
+                 <div className="flex flex-col items-end mr-1">
+                     <span className="text-[8px] font-bold text-cyan-400 uppercase tracking-widest">MOTO FM</span>
+                     <span className="text-xs font-bold text-white truncate max-w-[100px]">{station.name}</span>
                  </div>
-
-                 <button 
-                    onClick={onToggleDrive} 
-                    className={`h-14 w-full rounded-2xl flex flex-col items-center justify-center transition-all font-bold tracking-wide shadow-lg ${
-                        isDriving 
-                        ? 'bg-red-500/10 border border-red-500/50 text-red-500 active:bg-red-500/20' 
-                        : 'bg-cyan-500 text-slate-900 hover:bg-cyan-400 active:scale-95 shadow-[0_0_15px_rgba(6,182,212,0.4)]'
-                    }`}
-                >
-                    {isDriving ? (
-                        <>
-                           <span className="text-lg font-mono leading-none">{tripTime}</span>
-                           <span className="text-[9px] opacity-70">DURDUR</span>
-                        </>
-                    ) : (
-                        <>
-                           <Zap size={20} fill="currentColor" className="mb-1" />
-                           <span className="text-[10px] leading-none">BAŞLA</span>
-                        </>
-                    )}
-                </button>
+                 <button onClick={togglePlay} className="w-10 h-10 rounded-full bg-cyan-500 hover:bg-cyan-400 flex items-center justify-center text-slate-900 shadow-[0_0_15px_rgba(6,182,212,0.6)] transition-all active:scale-95">
+                     {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
+                 </button>
             </div>
+        </div>
+    );
+};
+
+// 1. DASHBOARD HEADER (UPDATED)
+const DashboardHeader = ({ speed, altitude, heading, accuracy, tripTime, leanAngle, onCalibrate, next5kmStats }: any) => (
+    <div className="flex-none bg-[#0b0f19] border-b border-slate-800 pb-0 pt-2 z-50 shadow-2xl relative overflow-hidden">
+        <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-1/2 bg-cyan-500/10 blur-3xl rounded-full opacity-60`}></div>
+        
+        {/* TOP ROW: Speed & Lean */}
+        <div className="grid grid-cols-3 gap-2 relative z-10 items-center px-4 pb-2">
+            {/* Speed */}
+            <div className="col-span-1 flex flex-col justify-start">
+                <div className="flex items-baseline"><span className="text-5xl font-black text-white leading-none tracking-tighter tabular-nums">{speed}</span></div>
+                <div className="text-[10px] font-black text-cyan-500 tracking-widest mt-0.5">KM/H</div>
+            </div>
+
+            {/* Lean Gauge (Center) */}
+            <div className="col-span-1 flex justify-center -mt-2">
+                <LeanGauge angle={leanAngle} onCalibrate={onCalibrate} />
+            </div>
+
+            {/* Stats (Right) */}
+            <div className="col-span-1 flex flex-col items-end gap-1">
+                 <div className="flex items-center gap-1 bg-slate-800/50 px-2 py-1 rounded">
+                     <Mountain size={12} className="text-slate-400"/>
+                     <span className="text-xs font-mono font-bold text-white">{altitude ? Math.round(altitude) : 0}m</span>
+                 </div>
+                 <div className="flex items-center gap-1 bg-slate-800/50 px-2 py-1 rounded">
+                     <Timer size={12} className="text-slate-400"/>
+                     <span className="text-xs font-mono font-bold text-white">{tripTime}</span>
+                 </div>
+            </div>
+        </div>
+
+        {/* BOTTOM ROW: Co-Pilot Prediction */}
+        <div className="bg-[#0f1523] border-t border-slate-800/50 pb-3 pt-1">
+            <CoPilotCard stats={next5kmStats} />
         </div>
     </div>
 );
 
-// 2. ASPHALT CONDITION CARD
-const ConditionCard = ({ weatherData }: { weatherData: WeatherData[] }) => {
-    if (!weatherData.length) return null;
-
-    const avgTemp = weatherData.reduce((acc, curr) => acc + curr.temp, 0) / weatherData.length;
-    const maxRainProb = Math.max(...weatherData.map(w => w.rainProb));
-    const maxWind = Math.max(...weatherData.map(w => w.windSpeed));
-    
-    let tireStatus = "SOĞUK";
-    let tireColor = "text-blue-400";
-    if (avgTemp > 15) { tireStatus = "İDEAL"; tireColor = "text-emerald-400"; }
-    if (avgTemp > 30) { tireStatus = "YÜKSEK"; tireColor = "text-amber-400"; }
-    if (maxRainProb > 30) { tireStatus = "DÜŞÜK TUTUŞ"; tireColor = "text-cyan-400"; }
-
-    let conditionTitle = "ZEMİN İYİ";
-    let conditionColor = "text-emerald-400";
-    let conditionIcon = <ShieldCheck size={32} className="text-emerald-400" />;
-
-    if (maxRainProb > 40) {
-        conditionTitle = "ISLAK ZEMİN";
-        conditionColor = "text-cyan-400";
-        conditionIcon = <CloudRain size={32} className="text-cyan-400" />;
-    } else if (maxWind > 35) {
-        conditionTitle = "RÜZGARLI";
-        conditionColor = "text-amber-400";
-        conditionIcon = <Wind size={32} className="text-amber-400" />;
-    }
-
-    return (
-        <div className="mx-4 mt-4 p-0 rounded-3xl bg-slate-900/80 border border-slate-700 shadow-xl overflow-hidden backdrop-blur-sm">
-             <div className={`h-1 w-full bg-gradient-to-r from-transparent via-${conditionColor.split('-')[1]}-500 to-transparent opacity-70`}></div>
-             <div className="p-5 flex items-center justify-between">
-                 <div className="flex items-center gap-4">
-                     <div className="p-3 bg-slate-800 rounded-2xl border border-slate-700 shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)]">
-                         {conditionIcon}
-                     </div>
-                     <div>
-                         <h3 className={`text-xl font-black italic tracking-wide ${conditionColor}`}>{conditionTitle}</h3>
-                         <div className="flex items-center gap-2 mt-1">
-                             <Activity size={12} className={tireColor} />
-                             <span className={`text-[10px] font-bold ${tireColor} uppercase tracking-wider`}>LASTİK: {tireStatus}</span>
-                         </div>
-                     </div>
-                 </div>
-                 
-                 <div className="flex gap-4 items-center">
-                     <div className="text-right">
-                         <div className="text-xl font-bold text-white tabular-nums">{Math.round(avgTemp)}°</div>
-                         <div className="text-[9px] text-slate-500 font-bold uppercase">HAVA</div>
-                     </div>
-                     <div className="w-[1px] h-8 bg-slate-700"></div>
-                     <div className="text-right">
-                         <div className="text-xl font-bold text-white tabular-nums">{maxRainProb}%</div>
-                         <div className="text-[9px] text-slate-500 font-bold uppercase">YAĞIŞ</div>
-                     </div>
-                 </div>
-             </div>
-        </div>
-    );
-};
-
-const RoadbookRow = ({ dist, weather, isLast }: { dist: number, weather: WeatherData, isLast: boolean }) => {
+const RoadbookRow = ({ dist, weather }: { dist: number, weather: WeatherData }) => {
     const isWet = weather.rainProb > 40 || weather.rain > 0.5;
     return (
         <div className="flex gap-4 relative pl-4 pr-4">
@@ -256,21 +268,11 @@ const RoadbookRow = ({ dist, weather, isLast }: { dist: number, weather: Weather
                  <div className="text-[9px] text-slate-500 font-bold">KM</div>
             </div>
             <div className={`w-3 h-3 rounded-full mt-7 ml-[0.35rem] shrink-0 border-2 border-[#0b0f19] z-20 ${isWet ? 'bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.8)]' : 'bg-slate-600'}`}></div>
-            <div className={`flex-1 mb-3 rounded-xl p-4 border flex items-center justify-between shadow-lg transition-all ${
-                isWet 
-                ? 'bg-gradient-to-r from-slate-900 via-slate-900 to-cyan-900/20 border-cyan-900/50' 
-                : 'bg-slate-800/50 border-slate-700/50'
-            }`}>
+            <div className={`flex-1 mb-3 rounded-xl p-4 border flex items-center justify-between shadow-lg transition-all ${isWet ? 'bg-gradient-to-r from-slate-900 via-slate-900 to-cyan-900/20 border-cyan-900/50' : 'bg-slate-800/50 border-slate-700/50'}`}>
                  <div className="flex items-center gap-4">
                      {getWeatherIcon(weather.weatherCode, 28)}
-                     <div>
-                         <div className="flex items-baseline gap-1">
-                             <span className="text-lg font-bold text-white">{Math.round(weather.temp)}°</span>
-                         </div>
-                         <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
-                             <Wind size={10} /> {Math.round(weather.windSpeed)}
-                             {getWindDirectionArrow(weather.windDirection)}
-                         </div>
+                     <div><div className="flex items-baseline gap-1"><span className="text-lg font-bold text-white">{Math.round(weather.temp)}°</span></div>
+                         <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400"><Wind size={10} /> {Math.round(weather.windSpeed)} {getWindDirectionArrow(weather.windDirection)}</div>
                      </div>
                  </div>
                  {isWet && <div className="px-2 py-1 rounded bg-cyan-500/10 border border-cyan-500/30 text-[10px] text-cyan-400 font-bold uppercase">KAYGAN</div>}
@@ -280,266 +282,318 @@ const RoadbookRow = ({ dist, weather, isLast }: { dist: number, weather: Weather
 };
 
 const App: React.FC = () => {
-  // --- STATE ---
-  const [startQuery, setStartQuery] = useState("");
   const [endQuery, setEndQuery] = useState("");
   const [searchResults, setSearchResults] = useState<LocationData[]>([]);
-  const [activeSearchField, setActiveSearchField] = useState<'start' | 'end' | null>(null);
   
   const [startLoc, setStartLoc] = useState<LocationData | null>(null);
   const [endLoc, setEndLoc] = useState<LocationData | null>(null);
-  const [radarPoints, setRadarPoints] = useState<{dist: number, weather: WeatherData}[]>([]);
   
-  // Driving State
-  const [isDriving, setIsDriving] = useState(false);
+  const [routeOptions, setRouteOptions] = useState<RouteAlternative[]>([]);
+  const [radarPoints, setRadarPoints] = useState<{dist: number, weather: WeatherData}[]>([]);
+  const [activeRouteCoords, setActiveRouteCoords] = useState<[number, number][] | null>(null);
+  const [activeRouteType, setActiveRouteType] = useState<'fastest' | 'scenic' | null>(null);
+  const [routeElevation, setRouteElevation] = useState<ElevationStats | null>(null);
+  
+  // Telemetry
+  const [userPos, setUserPos] = useState<[number, number] | null>(null);
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [altitude, setAltitude] = useState<number | null>(null);
   const [heading, setHeading] = useState<number | null>(null);
   const [accuracy, setAccuracy] = useState<number>(0);
   const [tripTime, setTripTime] = useState("00:00");
-  
-  // Sensor State
   const [leanAngle, setLeanAngle] = useState(0);
-  const [maxLean, setMaxLean] = useState({ left: 0, right: 0 });
+  const [calibrationOffset, setCalibrationOffset] = useState(0); // Added for Tare functionality
+  const [next5kmStats, setNext5kmStats] = useState<NextSegmentStats | null>(null);
   
   const [isLoading, setIsLoading] = useState(false);
-  
+  const [isRerouting, setIsRerouting] = useState(false);
+
   // Refs
   const watchIdRef = useRef<number | null>(null);
   const tripStartRef = useRef<number | null>(null);
   const timerRef = useRef<any>(null);
+  const lastRerouteTime = useRef<number>(0);
 
-  // --- SEARCH ---
-  useEffect(() => {
-      const q = activeSearchField === 'start' ? startQuery : endQuery;
-      if (q.length < 3) { setSearchResults([]); return; }
-      const t = setTimeout(async () => setSearchResults(await searchLocation(q)), 400);
-      return () => clearTimeout(t);
-  }, [startQuery, endQuery]);
+  // --- ANALYZE NEXT 5 KM ---
+  const analyzeNext5Km = (currentLat: number, currentLng: number, coords: [number, number][], elevations: ElevationStats | null, radar: {dist: number, weather: WeatherData}[]) => {
+      if (!coords.length) return;
 
-  const handleSelectLoc = (loc: LocationData) => {
-      if (activeSearchField === 'start') { setStartLoc(loc); setStartQuery(loc.name); }
-      else { setEndLoc(loc); setEndQuery(loc.name); }
-      setActiveSearchField(null);
-      setSearchResults([]);
-  };
+      let closestIdx = 0;
+      let minD = 99999;
+      for (let i = 0; i < coords.length; i+=5) {
+          const d = getDistanceFromLatLonInKm(currentLat, currentLng, coords[i][1], coords[i][0]);
+          if (d < minD) { minD = d; closestIdx = i; }
+      }
 
-  const calculateRoute = async (s: LocationData, e: LocationData) => {
-      setIsLoading(true);
-      try {
-          const alts = await getRouteAlternatives(s, e);
-          if (alts.length > 0) {
-              const route = alts[0];
-              const points = sampleRoutePoints(route.coordinates.map(c=>[c[1], c[0]]), 20);
-              const weatherData = await Promise.all(points.map(p => getWeatherForPoint(p.coord[0], p.coord[1])));
-              setRadarPoints(points.map((p, i) => ({ dist: p.dist, weather: weatherData[i] })));
-          } else {
-              alert("Rota bulunamadı.");
-          }
-      } catch (err) { alert("Hata: " + err); } finally { setIsLoading(false); }
-  };
-
-  // --- LOCATION HELPER ---
-  const handleUseCurrentLocation = (field: 'start' | 'end') => {
-      if (!navigator.geolocation) { alert("GPS desteklenmiyor."); return; }
+      const lookAheadIdx = Math.min(coords.length - 1, closestIdx + 50);
       
-      setIsLoading(true);
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-          try {
-            const addr = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
-            const loc = { name: addr, lat: pos.coords.latitude, lng: pos.coords.longitude };
-            
-            if (field === 'start') { setStartLoc(loc); setStartQuery(addr); }
-            else { setEndLoc(loc); setEndQuery(addr); }
-          } catch(e) { alert("Konum alınamadı"); }
-          finally { setIsLoading(false); }
-      }, (err) => {
-          setIsLoading(false);
-          alert("Konum izni verilmeli.");
+      let elevStatus: 'flat' | 'climb' | 'descent' = 'flat';
+      let slope = 0;
+
+      if (elevations && elevations.points.length > 0) {
+          const eIdx1 = Math.floor((closestIdx / coords.length) * elevations.points.length);
+          const eIdx2 = Math.floor((lookAheadIdx / coords.length) * elevations.points.length);
+          
+          if (eIdx2 < elevations.points.length && eIdx1 < eIdx2) {
+              const h1 = elevations.points[eIdx1];
+              const h2 = elevations.points[eIdx2];
+              const distKm = 5; 
+              const rise = h2 - h1;
+              slope = Math.round((rise / (distKm * 1000)) * 100); 
+
+              if (slope > 2) elevStatus = 'climb';
+              else if (slope < -2) elevStatus = 'descent';
+              else elevStatus = 'flat';
+          }
+      }
+
+      const targetCoord = coords[lookAheadIdx];
+      let nearestWeather = radar[0]?.weather;
+      let minWD = 9999;
+      
+      for(const p of radar) {
+          const d = getDistanceFromLatLonInKm(targetCoord[1], targetCoord[0], p.weather.lat, p.weather.lng);
+          if (d < minWD) { minWD = d; nearestWeather = p.weather; }
+      }
+
+      let asphalt: 'dry' | 'wet' | 'slippery' = 'dry';
+      if (nearestWeather) {
+          if (nearestWeather.rainProb > 40 || nearestWeather.rain > 0.5) asphalt = 'wet';
+          if (nearestWeather.temp < 4 && nearestWeather.rainProb > 20) asphalt = 'slippery';
+      }
+
+      setNext5kmStats({
+          asphalt,
+          elevation: elevStatus,
+          slope: Math.abs(slope),
+          weatherCode: nearestWeather ? nearestWeather.weatherCode : 0,
+          windSpeed: nearestWeather ? nearestWeather.windSpeed : 0
       });
   };
 
-  // --- SENSORS & GPS ---
-  
-  // Orientation Handler
-  const handleOrientation = (event: DeviceOrientationEvent) => {
-      // Gamma is usually Left/Right tilt (-90 to 90) in Landscape/Portrait
-      // We assume standard landscape mounting for now or portrait. 
-      // Gamma is left/right tilt around Y axis.
-      let angle = event.gamma || 0;
-      
-      // Simple smoothing could be added here, but direct feed is responsive
-      // Clamp for UI safety
-      if (angle > 90) angle = 90;
-      if (angle < -90) angle = -90;
+  // --- AUTO START GPS & LOCATION ---
+  useEffect(() => {
+    tripStartRef.current = Date.now();
+    timerRef.current = setInterval(() => {
+        if (tripStartRef.current) {
+            const diff = Math.floor((Date.now() - tripStartRef.current) / 1000);
+            const m = Math.floor(diff / 60).toString().padStart(2, '0');
+            const s = (diff % 60).toString().padStart(2, '0');
+            setTripTime(`${m}:${s}`);
+        }
+    }, 1000);
 
-      setLeanAngle(angle);
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            const loc = { name: "Mevcut Konum", lat: pos.coords.latitude, lng: pos.coords.longitude, admin1: "GPS" };
+            setStartLoc(loc);
+            setUserPos([pos.coords.latitude, pos.coords.longitude]);
+        });
 
-      // Track Max
-      setMaxLean(prev => ({
-          left: angle < 0 ? Math.max(prev.left, Math.abs(angle)) : prev.left,
-          right: angle > 0 ? Math.max(prev.right, angle) : prev.right
-      }));
+        watchIdRef.current = navigator.geolocation.watchPosition(
+            pos => {
+                const { latitude, longitude, speed, altitude, heading, accuracy } = pos.coords;
+                setUserPos([latitude, longitude]);
+                
+                const kmh = speed ? speed * 3.6 : 0;
+                setCurrentSpeed(prev => {
+                    if (Math.abs(kmh - prev) > 40 && prev > 10) return prev; 
+                    return Math.round(prev * 0.7 + kmh * 0.3); 
+                });
+                setAltitude(altitude); setHeading(heading); setAccuracy(accuracy || 0);
+
+                if (activeRouteCoords && radarPoints.length > 0) {
+                     analyzeNext5Km(latitude, longitude, activeRouteCoords, routeElevation, radarPoints);
+                }
+
+                if (activeRouteCoords && endLoc && !isRerouting && Date.now() - lastRerouteTime.current > 10000) {
+                     let minD = 9999;
+                     for(let i=0; i<activeRouteCoords.length; i+=10) {
+                         const d = getDistanceFromLatLonInKm(latitude, longitude, activeRouteCoords[i][1], activeRouteCoords[i][0]);
+                         if(d < minD) minD = d;
+                     }
+                     if (minD > 0.5) triggerReroute(latitude, longitude);
+                }
+            },
+            err => console.warn(err),
+            { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+        );
+    }
+    
+    if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+        (DeviceOrientationEvent as any).requestPermission().then((s: string) => { 
+            if (s === 'granted') window.addEventListener('deviceorientation', handleOrientation); 
+        }).catch(console.error);
+    } else { 
+        window.addEventListener('deviceorientation', handleOrientation); 
+    }
+
+    return () => {
+        if(watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current);
+        if(timerRef.current) clearInterval(timerRef.current);
+        window.removeEventListener('deviceorientation', handleOrientation);
+    };
+  }, [activeRouteCoords, routeElevation, radarPoints]); 
+
+  const triggerReroute = async (lat: number, lng: number) => {
+      if(!endLoc) return;
+      setIsRerouting(true);
+      lastRerouteTime.current = Date.now();
+      try {
+          const newStart: LocationData = { name: "Current", lat, lng };
+          const alts = await getRouteAlternatives(newStart, endLoc);
+          if (alts.length > 0) selectRoute(alts[0]);
+      } catch(e) { console.error("Reroute failed", e); } finally { setIsRerouting(false); }
   };
 
-  const toggleDriveMode = () => {
-      if (isDriving) {
-          // Stop
-          setIsDriving(false);
-          if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current);
-          if (timerRef.current) clearInterval(timerRef.current);
-          window.removeEventListener('deviceorientation', handleOrientation);
-          
-          setCurrentSpeed(0);
-          setAltitude(null);
-          setHeading(null);
-          setAccuracy(0);
-          setTripTime("00:00");
-      } else {
-          // Start
-          // Request Sensor Permissions (iOS 13+)
-          if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
-              (DeviceOrientationEvent as any).requestPermission()
-                  .then((permissionState: string) => {
-                      if (permissionState === 'granted') {
-                          window.addEventListener('deviceorientation', handleOrientation);
-                      }
-                  })
-                  .catch(console.error);
-          } else {
-              // Non-iOS 13+ devices
-              window.addEventListener('deviceorientation', handleOrientation);
-          }
+  const handleOrientation = (event: DeviceOrientationEvent) => {
+      let rawAngle = event.gamma || 0; 
+      if (rawAngle > 90) rawAngle = 90; if (rawAngle < -90) rawAngle = -90;
+      setLeanAngle(prev => prev * 0.8 + rawAngle * 0.2);
+  };
 
-          setIsDriving(true);
-          tripStartRef.current = Date.now();
-          
-          timerRef.current = setInterval(() => {
-              if (tripStartRef.current) {
-                  const diff = Math.floor((Date.now() - tripStartRef.current) / 1000);
-                  const m = Math.floor(diff / 60).toString().padStart(2, '0');
-                  const s = (diff % 60).toString().padStart(2, '0');
-                  setTripTime(`${m}:${s}`);
-              }
-          }, 1000);
+  // --- CALIBRATE: Sets current angle as "0" ---
+  const calibrateLean = () => {
+      setCalibrationOffset(leanAngle);
+  };
 
-          if (navigator.geolocation) {
-              watchIdRef.current = navigator.geolocation.watchPosition(
-                  pos => {
-                      const { speed, altitude, heading, accuracy } = pos.coords;
-                      const kmh = speed ? speed * 3.6 : 0;
-                      setCurrentSpeed(prev => {
-                          if (Math.abs(kmh - prev) > 40 && prev > 10) return prev; 
-                          return Math.round(prev * 0.6 + kmh * 0.4); 
-                      });
-                      setAltitude(altitude);
-                      setHeading(heading);
-                      setAccuracy(accuracy || 0);
-                  },
-                  err => console.warn("GPS Error", err),
-                  { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
-              );
-          }
+  // --- SEARCH ---
+  useEffect(() => {
+      if (endQuery.length < 3) { setSearchResults([]); return; }
+      const t = setTimeout(async () => setSearchResults(await searchLocation(endQuery)), 400);
+      return () => clearTimeout(t);
+  }, [endQuery]);
+
+  const handleSelectLoc = (loc: LocationData) => {
+      setEndLoc(loc); setEndQuery(loc.name); setSearchResults([]);
+  };
+
+  const handleSearchRoutes = async () => {
+      if(!startLoc || !endLoc) return;
+      setIsLoading(true); setRouteOptions([]); setRadarPoints([]);
+      try {
+          const alts = await getRouteAlternatives(startLoc, endLoc);
+          if (alts.length > 0) setRouteOptions(alts);
+          else alert("Rota bulunamadı.");
+      } catch (err) { alert("Hata: " + err); } finally { setIsLoading(false); }
+  };
+
+  const selectRoute = async (route: RouteAlternative) => {
+      setIsLoading(true);
+      try {
+          const elev = await getElevationProfile(route.coordinates);
+          setRouteElevation(elev);
+
+          const points = sampleRoutePoints(route.coordinates.map(c=>[c[1], c[0]]), 10);
+          const weatherData = await Promise.all(points.map(p => getWeatherForPoint(p.coord[0], p.coord[1])));
+          setRadarPoints(points.map((p, i) => ({ dist: p.dist, weather: weatherData[i] })));
+          setActiveRouteCoords(route.coordinates);
+          setActiveRouteType(route.type);
+          setRouteOptions([]); 
+      } catch(e) {
+          alert("Analiz hatası");
+      } finally {
+          setIsLoading(false);
       }
   };
 
   return (
     <div className="dash-bg w-full h-[100dvh] flex flex-col relative text-slate-100 overflow-hidden font-sans">
-      
-      {/* 1. COCKPIT HEADER */}
       <DashboardHeader 
         speed={currentSpeed} 
-        isDriving={isDriving} 
-        onToggleDrive={toggleDriveMode} 
-        altitude={altitude}
-        heading={heading}
-        accuracy={accuracy}
-        tripTime={tripTime}
-        leanAngle={leanAngle}
-        maxLean={maxLean}
+        altitude={altitude} 
+        heading={heading} 
+        accuracy={accuracy} 
+        tripTime={tripTime} 
+        leanAngle={leanAngle - calibrationOffset} 
+        onCalibrate={calibrateLean}
+        next5kmStats={next5kmStats}
       />
+      
+      {isRerouting && (
+          <div className="absolute top-24 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-2 rounded-full font-bold shadow-xl z-[60] animate-pulse flex items-center gap-2 border border-red-400">
+              <RotateCcw className="animate-spin" size={20} /> ROTA YENİLENİYOR...
+          </div>
+      )}
 
-      {/* 2. CONTENT */}
+      {/* MOTO RADIO */}
+      {radarPoints.length > 0 && <MotoRadio routeType={activeRouteType} />}
+
       <div className="flex-1 overflow-hidden relative flex flex-col">
           
-          {/* SETUP SCREEN */}
-          {radarPoints.length === 0 && (
+          {/* STATE 1: INPUT SCREEN */}
+          {radarPoints.length === 0 && routeOptions.length === 0 && (
               <div className="flex-1 flex flex-col justify-center px-6 max-w-lg mx-auto w-full space-y-6 animate-in fade-in zoom-in duration-300">
-                   <div className="text-center mb-4">
-                       <h1 className="text-3xl font-black italic tracking-tighter text-white drop-shadow-lg">ROTA ANALİZİ</h1>
-                       <p className="text-slate-500 text-sm mt-2">Mekan, AVM veya Şehir arayın.</p>
-                   </div>
-
+                   <div className="text-center mb-4"><h1 className="text-3xl font-black italic tracking-tighter text-white drop-shadow-lg">ROTA ANALİZİ</h1><p className="text-slate-500 text-sm mt-2">Mekan, AVM veya Benzinlik.</p></div>
                    <div className="space-y-4">
-                       {/* START INPUT */}
-                       <div className="group relative">
+                       <div className="group relative opacity-70">
                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-cyan-500"><MapPin /></div>
-                           <input 
-                              value={startQuery}
-                              onChange={e => setStartQuery(e.target.value)}
-                              onFocus={() => setActiveSearchField('start')}
-                              placeholder="Çıkış noktası..."
-                              className="w-full bg-slate-800/80 border-2 border-slate-700 rounded-2xl h-16 pl-14 pr-14 text-lg font-bold text-white focus:border-cyan-500 outline-none transition-all placeholder:text-slate-600"
-                           />
-                           <button onClick={() => handleUseCurrentLocation('start')} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-slate-700/50 hover:bg-cyan-500 text-slate-300 hover:text-white transition-all">
-                               <Crosshair size={20} />
-                           </button>
+                           <input disabled value="Mevcut Konum" className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl h-14 pl-14 pr-4 text-lg font-bold text-slate-400" />
+                           <div className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500 animate-pulse"><Crosshair size={20} /></div>
                        </div>
-
-                       {/* END INPUT */}
+                       
                        <div className="group relative">
                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-500"><Navigation /></div>
-                           <input 
-                              value={endQuery}
-                              onChange={e => setEndQuery(e.target.value)}
-                              onFocus={() => setActiveSearchField('end')}
-                              placeholder="Hedef (Örn: Starbucks, Bodrum)"
-                              className="w-full bg-slate-800/80 border-2 border-slate-700 rounded-2xl h-16 pl-14 pr-14 text-lg font-bold text-white focus:border-amber-500 outline-none transition-all placeholder:text-slate-600"
-                           />
-                           <button onClick={() => handleUseCurrentLocation('end')} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-slate-700/50 hover:bg-amber-500 text-slate-300 hover:text-white transition-all">
-                               <Crosshair size={20} />
-                           </button>
+                           <input value={endQuery} onChange={e => setEndQuery(e.target.value)} placeholder="Nereye sürüyoruz? (Örn: Benzin, AVM)" className="w-full bg-slate-800/80 border-2 border-slate-700 rounded-2xl h-16 pl-14 pr-14 text-lg font-bold text-white focus:border-amber-500 outline-none transition-all placeholder:text-slate-600" />
                        </div>
-
                        {searchResults.length > 0 && (
                            <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden max-h-48 overflow-y-auto z-50 shadow-2xl">
                                {searchResults.map((r, i) => (
-                                   <div key={i} onClick={() => handleSelectLoc(r)} className="p-4 border-b border-slate-700 hover:bg-slate-700 cursor-pointer flex justify-between items-center">
-                                       <span className="font-bold text-white truncate max-w-[70%]">{r.name}</span>
-                                       <span className="text-xs text-slate-400">{r.admin1}</span>
-                                   </div>
+                                   <div key={i} onClick={() => handleSelectLoc(r)} className="p-4 border-b border-slate-700 hover:bg-slate-700 cursor-pointer flex justify-between items-center"><span className="font-bold text-white truncate max-w-[70%]">{r.name}</span><span className="text-xs text-slate-400">{r.admin1}</span></div>
                                ))}
                            </div>
                        )}
                    </div>
-
                    <div className="pt-4 space-y-3">
-                       <button 
-                         onClick={() => { if(startLoc && endLoc) calculateRoute(startLoc, endLoc); }}
-                         disabled={isLoading || !startLoc || !endLoc}
-                         className="w-full h-16 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-2xl font-black text-xl text-white shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-                       >
-                           {isLoading ? "ANALİZ YAPILIYOR..." : "ROTAYI HESAPLA"}
-                           {!isLoading && <TrendingUp size={24} />}
+                       <button onClick={handleSearchRoutes} disabled={isLoading || !endLoc} className="w-full h-16 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-2xl font-black text-xl text-white shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                           {isLoading ? "ROTA ARANIYOR..." : "ROTALARI BUL"} {!isLoading && <Split size={24} />}
                        </button>
                    </div>
               </div>
           )}
 
-          {/* ACTIVE ROUTE SCREEN */}
+          {/* STATE 2: ROUTE SELECTION */}
+          {routeOptions.length > 0 && radarPoints.length === 0 && (
+              <div className="flex-1 flex flex-col p-6 animate-in slide-in-from-right duration-300">
+                   <div className="flex items-center justify-between mb-4">
+                       <div><h2 className="text-2xl font-black italic text-white">ROTA SEÇİMİ</h2><p className="text-slate-400 text-sm">Sürüş tarzına uygun rotayı seç.</p></div>
+                       <button onClick={() => setRouteOptions([])} className="p-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300"><RotateCcw size={20} /></button>
+                   </div>
+                   <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 pb-20">
+                       {routeOptions.map((opt, i) => (
+                           <div key={i} onClick={() => selectRoute(opt)} className="group relative bg-slate-800/80 border-2 border-slate-700 hover:border-cyan-500 rounded-3xl p-5 cursor-pointer transition-all active:scale-[0.99] overflow-hidden">
+                               <div className="flex justify-between items-start z-10 relative">
+                                   <div>
+                                       <div className="flex gap-2 mb-2">
+                                           {opt.tags.map(t => (<span key={t} className="px-2 py-0.5 rounded-md bg-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-400 border border-slate-700">{t}</span>))}
+                                       </div>
+                                       <h3 className="text-xl font-bold text-white mb-1">{opt.name}</h3>
+                                       <p className="text-xs text-slate-400 leading-relaxed max-w-[80%]">{opt.description}</p>
+                                   </div>
+                                   <div className="text-right">
+                                       <div className="text-2xl font-black text-cyan-400">{(opt.duration / 60).toFixed(0)}dk</div>
+                                       <div className="text-xs font-bold text-slate-500">{(opt.distance / 1000).toFixed(1)} km</div>
+                                   </div>
+                               </div>
+                               <LiveMiniMap coordinates={opt.coordinates} color={opt.color} userPos={userPos} />
+                               <div className="absolute bottom-4 right-4 bg-cyan-500 text-slate-900 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-20"><ChevronsRight size={24} /></div>
+                           </div>
+                       ))}
+                   </div>
+              </div>
+          )}
+
+          {/* STATE 3: DASHBOARD */}
           {radarPoints.length > 0 && (
-              <div className="flex-1 flex flex-col h-full overflow-hidden">
-                  <ConditionCard weatherData={radarPoints.map(p => p.weather)} />
+              <div className="flex-1 flex flex-col h-full overflow-hidden animate-in fade-in zoom-in duration-500">
                   <div className="mt-4 px-6 pb-2 flex justify-between items-end border-b border-slate-800 mx-4">
-                      <h2 className="text-xs font-black text-slate-500 tracking-[0.2em] uppercase">Yol Planı</h2>
-                      <button onClick={() => { setRadarPoints([]); setLeanAngle(0); setMaxLean({left:0, right:0}); }} className="text-[10px] font-bold text-red-500 hover:text-red-400 uppercase tracking-wider mb-1 px-2 py-1 bg-red-900/10 rounded flex items-center gap-1">
-                          <RotateCcw size={10} /> Çıkış
-                      </button>
+                      <h2 className="text-xs font-black text-slate-500 tracking-[0.2em] uppercase">CANLI YOL BİLGİSİ</h2>
+                      <button onClick={() => { setRadarPoints([]); setActiveRouteCoords(null); setLeanAngle(0); setCalibrationOffset(0); }} className="text-[10px] font-bold text-red-500 hover:text-red-400 uppercase tracking-wider mb-1 px-2 py-1 bg-red-900/10 rounded flex items-center gap-1"><RotateCcw size={10} /> Çıkış</button>
                   </div>
                   <div className="flex-1 overflow-y-auto no-scrollbar px-2 pb-20 fade-mask">
                       <div className="space-y-0 mt-4">
                           {radarPoints.map((point, i) => (
-                              <RoadbookRow key={i} dist={point.dist} weather={point.weather} isLast={i === radarPoints.length - 1} />
+                              <RoadbookRow key={i} dist={point.dist} weather={point.weather} />
                           ))}
                       </div>
                   </div>

@@ -1,12 +1,12 @@
 import { LocationData, WeatherData, RouteAlternative, ElevationStats, PoiData, RadioStation, RouteStep } from "../types";
 
-// --- NEW: Radio Browser API (Public APIs) ---
+// --- RADIO BROWSER API ---
 export const getRadioStations = async (tag: string): Promise<RadioStation[]> => {
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-        const res = await fetch(`https://de1.api.radio-browser.info/json/stations/bytag/${encodeURIComponent(tag)}?limit=15&order=votes&reverse=true`, {
+        const res = await fetch(`https://de1.api.radio-browser.info/json/stations/bytag/${encodeURIComponent(tag)}?limit=15&order=votes&reverse=true&hidebroken=true`, {
              signal: controller.signal
         });
         clearTimeout(timeoutId);
@@ -20,10 +20,9 @@ export const getRadioStations = async (tag: string): Promise<RadioStation[]> => 
     }
 };
 
-// --- NEW: Reverse Geocoding (Coords -> Address) ---
+// --- REVERSE GEOCODING ---
 export const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
     try {
-        // Using Nominatim for reverse geocoding
         const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=tr`);
         if (!res.ok) throw new Error("Reverse geo failed");
         
@@ -32,29 +31,16 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<string> 
         
         if (!addr) return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 
-        // Construct readable address: Mahalle, İlçe, İl
         const parts: string[] = [];
-
-        // 1. Mahalle / Semt
         if (addr.suburb) parts.push(addr.suburb);
-        else if (addr.neighbourhood) parts.push(addr.neighbourhood);
-        else if (addr.quarter) parts.push(addr.quarter);
-        else if (addr.road) parts.push(addr.road); // Fallback to road if no neighborhood
-
-        // 2. İlçe
+        if (addr.neighbourhood) parts.push(addr.neighbourhood);
+        if (addr.road) parts.push(addr.road);
         if (addr.town) parts.push(addr.town);
-        else if (addr.district) parts.push(addr.district);
-        else if (addr.county) parts.push(addr.county);
-        else if (addr.municipality) parts.push(addr.municipality);
-
-        // 3. İl
+        if (addr.district) parts.push(addr.district);
         if (addr.city) parts.push(addr.city);
         else if (addr.province) parts.push(addr.province);
-        else if (addr.state) parts.push(addr.state);
 
-        // Remove duplicates (sometimes town and city are same) and join
         const uniqueParts = [...new Set(parts)];
-        
         return uniqueParts.join(', ') || data.display_name.split(',')[0];
 
     } catch (e) {
@@ -62,20 +48,46 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<string> 
     }
 };
 
+// --- LOCATION SEARCH ---
 export const searchLocation = async (query: string): Promise<LocationData[]> => {
   if (query.length < 3) return [];
 
+  const lowerQ = query.toLowerCase();
+  let finalQuery = query;
+
+  const keywords: Record<string, string> = {
+      'benzin': 'fuel',
+      'petrol': 'fuel',
+      'akaryakıt': 'fuel',
+      'avm': 'mall',
+      'alışveriş': 'mall',
+      'yemek': 'restaurant',
+      'eczane': 'pharmacy',
+      'otel': 'hotel',
+      'market': 'supermarket',
+      'tamir': 'motorcycle_repair'
+  };
+
+  if (keywords[lowerQ]) {
+      finalQuery = keywords[lowerQ];
+  }
+
   const mapNominatimData = (data: any[]): LocationData[] => {
      return data.map((item: any) => {
-        let name = item.name || item.display_name.split(',')[0];
-        let admin = item.address.state || item.address.province || item.address.city || item.address.town || item.display_name.split(',').slice(1,3).join(',');
+        let name = item.name; 
         
-        if (item.address.road && item.address.house_number) {
-            name = `${item.address.road} ${item.address.house_number}`;
-        } else if (item.address.road) {
-             name = `${item.address.road}`;
+        if (!name && item.address) {
+            if (item.address.amenity) name = item.address.amenity;
+            else if (item.address.shop) name = item.address.shop;
+            else if (item.address.tourism) name = item.address.tourism;
+            else if (item.address.leisure) name = item.address.leisure;
+            else if (item.address.building) name = item.address.building;
         }
 
+        if (!name) name = item.display_name.split(',')[0];
+
+        let admin = item.address.state || item.address.province || item.address.city || item.address.town || item.display_name.split(',').slice(1,3).join(',');
+        
         return {
           name: name,
           lat: parseFloat(item.lat),
@@ -86,21 +98,11 @@ export const searchLocation = async (query: string): Promise<LocationData[]> => 
     });
   };
 
-  const mapOpenMeteoData = (data: any[]): LocationData[] => {
-      return data.map((item: any) => ({
-        name: item.name,
-        lat: item.latitude,
-        lng: item.longitude,
-        admin1: item.admin1 || item.country,
-        type: 'city'
-      }));
-  };
-
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3000); 
 
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=8&accept-language=tr`, {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(finalQuery)}&format=json&addressdetails=1&limit=8&accept-language=tr&dedupe=1`, {
         signal: controller.signal
     });
     clearTimeout(timeoutId);
@@ -112,16 +114,7 @@ export const searchLocation = async (query: string): Promise<LocationData[]> => 
     return mapNominatimData(data);
 
   } catch (nominatimError) {
-    try {
-        const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=tr&format=json`);
-        if (!res.ok) throw new Error(`OpenMeteo status: ${res.status}`);
-        
-        const data = await res.json();
-        if (!data.results) return [];
-        return mapOpenMeteoData(data.results);
-    } catch (fallbackError) {
-        return [];
-    }
+     return [];
   }
 };
 
@@ -138,12 +131,10 @@ export const getIpLocation = async (): Promise<LocationData | null> => {
       admin1: data.region
     };
   } catch (e) {
-    console.error("IP Location error", e);
     return null;
   }
 };
 
-// Helper to generate Turkish instruction
 const getInstruction = (step: any): string => {
     if (!step || !step.maneuver) return "İlerle";
     
@@ -152,30 +143,25 @@ const getInstruction = (step: any): string => {
     const mod = m.modifier;
     const name = step.name ? `(${step.name})` : "";
     
-    if (type === 'depart') return `Yola çık ve ilerle`;
-    if (type === 'arrive') return `Hedefe ulaştınız`;
-    if (type === 'roundabout') return `Döner kavşaktan ${m.exit || 1}. çıkıştan çık`;
-    if (type === 'merge') return `Yola katıl ${name}`;
-    if (type === 'on ramp') return `Bağlantı yoluna gir ${name}`;
-    if (type === 'off ramp') return `Çıkıştan çık ${name}`;
-    if (type === 'fork') return `Çataldan ${mod?.includes('left') ? 'sola' : 'sağa'} devam et`;
+    // Basitleştirilmiş Türkçe yönlendirmeler
+    if (type === 'depart') return `Rotaya başla`;
+    if (type === 'arrive') return `Hedefe ulaştın`;
+    if (type === 'roundabout') return `Kavşaktan ${m.exit}. çıkış`;
+    if (mod === 'left') return `Sola dön`;
+    if (mod === 'right') return `Sağa dön`;
+    if (mod === 'slight left') return `Hafif sola`;
+    if (mod === 'slight right') return `Hafif sağa`;
+    if (mod === 'sharp left') return `Keskin sola`;
+    if (mod === 'sharp right') return `Keskin sağa`;
+    if (mod === 'uturn') return `U dönüşü`;
 
-    let dir = "devam et";
-    if (mod === 'left') dir = "sola dön";
-    else if (mod === 'right') dir = "sağa dön";
-    else if (mod === 'slight left') dir = "hafif sola";
-    else if (mod === 'slight right') dir = "hafif sağa";
-    else if (mod === 'sharp left') dir = "tam sola";
-    else if (mod === 'sharp right') dir = "tam sağa";
-    else if (mod === 'uturn') dir = "U dönüşü yap";
-
-    return `${dir} ${name}`;
+    return `Devam et ${name}`;
 };
 
-// --- OPTIMIZED ROUTING: Force Diversity ---
+// --- ROBUST ROUTING STRATEGY ---
 export const getRouteAlternatives = async (start: LocationData, end: LocationData): Promise<RouteAlternative[]> => {
   
-  // Helper to map OSRM response to our type
+  // Helper to format the route object
   const mapRoute = (route: any, category: 'fastest' | 'toll_free' | 'scenic'): RouteAlternative => {
      let name = "Rota";
      let color = "#94a3b8";
@@ -183,23 +169,26 @@ export const getRouteAlternatives = async (start: LocationData, end: LocationDat
      let description = "";
      let type: 'fastest' | 'scenic' = 'fastest';
 
+     const durMins = Math.round(route.duration / 60);
+     const distKm = (route.distance / 1000).toFixed(1);
+
      if (category === 'fastest') {
-         name = "Otoban / Ekspres";
+         name = "En Hızlı (Otoban)";
          color = "#3b82f6"; // Blue
-         tags = ["En Hızlı", "Ücretli"];
-         description = "Trafik akışı hızlı, ücretli geçiş içerebilir.";
+         tags = ["Hızlı", "Standart"];
+         description = `${durMins} dk • ${distKm} km • Trafik akışı normal.`;
          type = 'fastest';
      } else if (category === 'toll_free') {
-         name = "Devlet Yolu (D-100)";
+         name = "Ücretsiz / Ekonomik";
          color = "#f59e0b"; // Orange
-         tags = ["Alternatif", "Ücretsiz"];
-         description = "Otoyol ücreti yok, yerleşim yerlerinden geçebilir.";
-         type = 'fastest'; // Still paved/fast, just not highway
+         tags = ["Gişesiz", "Ekonomik"];
+         description = `${durMins} dk • ${distKm} km • Ücretli yollardan kaçınır.`;
+         type = 'fastest';
      } else {
          name = "Manzara / Köy Yolu";
          color = "#10b981"; // Emerald
          tags = ["Virajlı", "Sakin"];
-         description = "Daha düşük hız, doğa ile iç içe.";
+         description = `${durMins} dk • ${distKm} km • Otobandan uzak.`;
          type = 'scenic';
      }
 
@@ -225,63 +214,75 @@ export const getRouteAlternatives = async (start: LocationData, end: LocationDat
   };
 
   try {
-      // 1. STRATEGY: Sequential requests to avoid OSRM 429 Too Many Requests
-      const baseUrl = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`;
+      const baseUrl = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson&steps=true`;
       
-      // Try fetching fastest route WITH steps first
-      let resFast;
-      try {
-        const fetchUrl = `${baseUrl}&steps=true&alternatives=true`;
-        resFast = await fetch(fetchUrl).then(r => r.json());
-      } catch (e) {
-          console.warn("Fastest route with steps failed, retrying without steps...");
-      }
+      // PARALLEL EXECUTION STRATEGY
+      // We fire 3 distinct requests to force OSRM to give us different paths.
+      const promises = [
+          // 1. FASTEST (Standard)
+          fetch(`${baseUrl}&alternatives=true`).then(r => r.json()).then(d => ({ type: 'fastest', data: d })),
+          
+          // 2. NO TOLLS (Explicitly avoid tolls)
+          fetch(`${baseUrl}&exclude=tolls`).then(r => r.json()).then(d => ({ type: 'toll_free', data: d })),
+          
+          // 3. SCENIC (Explicitly avoid motorways)
+          fetch(`${baseUrl}&exclude=motorway`).then(r => r.json()).then(d => ({ type: 'scenic', data: d }))
+      ];
 
-      // If 'steps' caused timeout (common on long routes), try without steps
-      if (!resFast || resFast.code !== 'Ok') {
-          resFast = await fetch(`${baseUrl}&steps=false`).then(r => r.json()).catch(() => null);
-      }
-
-      if (!resFast || resFast.code !== 'Ok') {
-          throw new Error("Rota sunucusu yanıt vermiyor.");
-      }
-
+      const results = await Promise.allSettled(promises);
       const candidates: RouteAlternative[] = [];
 
-      // Add Primary Route
-      if (resFast.routes[0]) {
-          candidates.push(mapRoute(resFast.routes[0], 'fastest'));
+      // Helper to check for duplicates based on geometry similarity
+      const isDuplicate = (route: any) => {
+          return candidates.some(c => {
+              const distDiff = Math.abs(c.distance - route.distance);
+              const durDiff = Math.abs(c.duration - route.duration);
+              // Consider duplicate if length differs by less than 500m AND time by less than 2 mins
+              return distDiff < 500 && durDiff < 120;
+          });
+      };
+
+      // Process results
+      for (const result of results) {
+          if (result.status === 'fulfilled') {
+              const { type, data } = result.value;
+              if (data && data.code === 'Ok' && data.routes && data.routes.length > 0) {
+                  // OSRM returns routes sorted by relevance. Usually route[0] is the best for that criteria.
+                  const primaryRoute = data.routes[0];
+                  
+                  if (!isDuplicate(primaryRoute)) {
+                      candidates.push(mapRoute(primaryRoute, type as any));
+                  }
+                  
+                  // Sometimes "Fastest" request actually returns a 2nd alternative in the same payload
+                  if (type === 'fastest' && data.routes.length > 1) {
+                      const secondary = data.routes[1];
+                      if (!isDuplicate(secondary)) {
+                          // If we found a secondary route in "Fastest", label it vaguely as Alternative
+                          const altRoute = mapRoute(secondary, 'toll_free'); 
+                          altRoute.name = "Alternatif Rota";
+                          altRoute.tags = ["Alternatif"];
+                          candidates.push(altRoute);
+                      }
+                  }
+              }
+          }
       }
 
-      // Add Alternative from OSRM if available
-      if (resFast.routes[1]) {
-          const alt = mapRoute(resFast.routes[1], 'toll_free');
-          alt.name = "Alternatif Rota";
-          candidates.push(alt);
+      if (candidates.length === 0) {
+          throw new Error("Hiçbir rota bulunamadı. Mesafe çok uzak olabilir.");
       }
 
-      // Only if we really need another one, try a separate call for 'scenic' (avoid motorways)
-      // But only if distance isn't massive to avoid rate limit
-      if (candidates.length < 2) {
-           try {
-               await new Promise(r => setTimeout(r, 500)); // Small delay to be polite
-               const resScenic = await fetch(`${baseUrl}&exclude=motorway&steps=false`).then(r => r.json());
-               if (resScenic && resScenic.code === 'Ok' && resScenic.routes[0]) {
-                   const sRoute = mapRoute(resScenic.routes[0], 'scenic');
-                   // Check duplicate
-                   const isDup = candidates.some(c => Math.abs(c.distance - sRoute.distance) < 500);
-                   if (!isDup) candidates.push(sRoute);
-               }
-           } catch (e) {
-               // Ignore scenic failure
-           }
-      }
-
+      // Sort: Fastest first, then Toll Free, then Scenic
+      const order = { 'fastest': 1, 'toll_free': 2, 'scenic': 3 };
+      // Note: We used mapped type names in mapRoute. Re-sorting might rely on matching types.
+      // Actually, let's just keep the discovery order but prioritizing Fastest if it exists.
+      
       return candidates;
 
   } catch (e) {
       console.error("Routing error", e);
-      return [];
+      throw e;
   }
 };
 
@@ -340,76 +341,4 @@ export const getWeatherForPoint = async (lat: number, lng: number): Promise<Weat
   } catch (e) {
     return { lat, lng, temp: 0, rain: 0, rainProb: 0, windSpeed: 0, windDirection: 0, weatherCode: 0, hourlyRainForecast: [] };
   }
-};
-
-export const findPoisAlongRoute = async (coordinates: [number, number][], type: 'fuel' | 'food' | 'sight'): Promise<PoiData[]> => {
-    if (!coordinates || coordinates.length === 0) return [];
-
-    const sampleRate = Math.max(10, Math.floor(coordinates.length / 15)); 
-    const sampledCoords = coordinates.filter((_, i) => i % sampleRate === 0);
-    sampledCoords.push(coordinates[coordinates.length - 1]);
-
-    let filters = '';
-    if (type === 'fuel') filters = '["amenity"="fuel"]';
-    else if (type === 'food') filters = '["amenity"~"restaurant|cafe|fast_food"]';
-    else if (type === 'sight') filters = '["tourism"~"viewpoint|attraction|museum"]["name"]';
-
-    const radius = 3000;
-    let queryBody = '';
-    
-    sampledCoords.forEach(c => {
-        queryBody += `node${filters}(around:${radius},${c[1]},${c[0]});`;
-    });
-
-    const query = `[out:json][timeout:25];(${queryBody});out body 20;>;out skel qt;`;
-
-    try {
-        const res = await fetch('https://overpass-api.de/api/interpreter', {
-            method: 'POST',
-            body: query
-        });
-
-        if (!res.ok) throw new Error("Overpass API error");
-        const data = await res.json();
-        
-        return data.elements.map((el: any) => ({
-            id: el.id,
-            lat: el.lat,
-            lng: el.lon,
-            name: el.tags.name || (type === 'fuel' ? 'Akaryakıt İstasyonu' : 'Mekan'),
-            type: type
-        }));
-
-    } catch (e) {
-        return [];
-    }
-};
-
-export const findNearbyPois = async (lat: number, lng: number, type: 'fuel' | 'food' | 'shop', radius: number = 3000): Promise<PoiData[]> => {
-    let filters = '';
-    if (type === 'fuel') filters = '["amenity"="fuel"]';
-    else if (type === 'food') filters = '["amenity"~"restaurant|cafe"]';
-    else if (type === 'shop') filters = '["shop"~"motorcycle|car_repair"]';
-
-    const query = `[out:json][timeout:15];node${filters}(around:${radius},${lat},${lng});out body 5;>;out skel qt;`;
-
-    try {
-        const res = await fetch('https://overpass-api.de/api/interpreter', {
-            method: 'POST',
-            body: query
-        });
-
-        if (!res.ok) throw new Error("Overpass API error");
-        const data = await res.json();
-        
-        return data.elements.map((el: any) => ({
-            id: el.id,
-            lat: el.lat,
-            lng: el.lon,
-            name: el.tags.name || el.tags.brand || (type === 'fuel' ? 'İstasyon' : type === 'food' ? 'Kafe' : 'Servis'),
-            type: type
-        }));
-    } catch (e) {
-        return [];
-    }
 };
