@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Navigation, Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Zap, Droplets, Gauge, FlaskConical, Thermometer, TrendingUp, AlertTriangle, ShieldCheck, Mountain, Compass, Signal, Timer, Activity } from 'lucide-react';
+import { MapPin, Navigation, Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Zap, Droplets, Gauge, Thermometer, TrendingUp, ShieldCheck, Mountain, Compass, Timer, Activity, Locate, RotateCcw, Crosshair } from 'lucide-react';
 import { LocationData, WeatherData, RouteAlternative } from './types';
 import { searchLocation, getRouteAlternatives, getWeatherForPoint, reverseGeocode } from './services/api';
 
@@ -23,7 +23,6 @@ const getWindDirectionArrow = (deg: number) => (
     <ArrowUp size={18} className="text-slate-400" style={{ transform: `rotate(${deg}deg)` }} />
 );
 
-// Sample points evenly
 const sampleRoutePoints = (coords: [number, number][], intervalKm: number = 20) => {
     if (!coords.length) return [];
     const points = [{ coord: coords[0], dist: 0 }];
@@ -42,26 +41,54 @@ const sampleRoutePoints = (coords: [number, number][], intervalKm: number = 20) 
     return points;
 };
 
-// --- COMPONENTS ---
-
-const GPSSignalIndicator = ({ accuracy }: { accuracy: number }) => {
-    // accuracy is in meters. Lower is better.
-    let bars = 1;
-    let color = "text-red-500";
+// --- NEW COMPONENT: LEAN ANGLE GAUGE ---
+const LeanGauge = ({ angle, maxLeft, maxRight }: { angle: number, maxLeft: number, maxRight: number }) => {
+    // angle: negative is left, positive is right (usually)
+    // We visualize it as a curved bar or rotating element
     
-    if (accuracy <= 10) { bars = 4; color = "text-emerald-400"; }
-    else if (accuracy <= 25) { bars = 3; color = "text-cyan-400"; }
-    else if (accuracy <= 50) { bars = 2; color = "text-amber-400"; }
+    // Clamp visual angle to avoid UI breaking (max 60 degrees usually for street bikes)
+    const visualAngle = Math.max(-55, Math.min(55, angle));
 
     return (
-        <div className="flex flex-col items-end">
-            <div className="flex items-end gap-0.5 h-4">
-                <div className={`w-1 rounded-sm ${bars >= 1 ? color : 'bg-slate-700'} h-[25%]`}></div>
-                <div className={`w-1 rounded-sm ${bars >= 2 ? color : 'bg-slate-700'} h-[50%]`}></div>
-                <div className={`w-1 rounded-sm ${bars >= 3 ? color : 'bg-slate-700'} h-[75%]`}></div>
-                <div className={`w-1 rounded-sm ${bars >= 4 ? color : 'bg-slate-700'} h-[100%]`}></div>
-            </div>
-            <span className="text-[9px] text-slate-500 font-mono mt-0.5">±{Math.round(accuracy)}m</span>
+        <div className="relative flex flex-col items-center justify-center w-full h-24 mt-2">
+             {/* Background Arc */}
+             <div className="absolute top-4 w-48 h-24 border-t-[6px] border-r-[6px] border-l-[6px] border-slate-800 rounded-t-full"></div>
+             
+             {/* Tick Marks */}
+             <div className="absolute top-4 w-48 h-24 rounded-t-full overflow-hidden opacity-30">
+                 <div className="absolute top-0 left-1/2 w-0.5 h-3 bg-white -translate-x-1/2"></div> {/* 0 */}
+                 <div className="absolute top-2 left-[20%] w-0.5 h-2 bg-white -rotate-45 origin-bottom"></div> {/* Left 45 */}
+                 <div className="absolute top-2 right-[20%] w-0.5 h-2 bg-white rotate-45 origin-bottom"></div> {/* Right 45 */}
+             </div>
+
+             {/* Dynamic Needle / Bike Indicator */}
+             <div 
+                className="absolute top-6 w-1 h-16 origin-bottom transition-transform duration-100 ease-out z-10"
+                style={{ transform: `rotate(${visualAngle}deg)` }}
+             >
+                 <div className="w-full h-full bg-gradient-to-t from-transparent via-cyan-500 to-cyan-400 rounded-full shadow-[0_0_10px_rgba(34,211,238,0.8)]"></div>
+                 {/* Bike Icon at tip */}
+                 <div className="absolute -top-4 -left-3 text-cyan-400 transform -rotate-180">
+                     <Navigation size={28} fill="currentColor" />
+                 </div>
+             </div>
+
+             {/* Digital Readout */}
+             <div className="absolute -bottom-2 flex justify-between w-full px-8 text-xs font-bold font-mono">
+                 <div className="text-left">
+                     <div className="text-slate-500 text-[9px]">MAX L</div>
+                     <div className="text-emerald-400">{Math.round(maxLeft)}°</div>
+                 </div>
+                 
+                 <div className="text-center z-20 bg-[#0b0f19] px-2 -mt-4">
+                      <div className="text-2xl font-black text-white">{Math.abs(Math.round(angle))}°</div>
+                 </div>
+
+                 <div className="text-right">
+                     <div className="text-slate-500 text-[9px]">MAX R</div>
+                     <div className="text-emerald-400">{Math.round(maxRight)}°</div>
+                 </div>
+             </div>
         </div>
     );
 };
@@ -74,7 +101,9 @@ const DashboardHeader = ({
     altitude, 
     heading, 
     accuracy,
-    tripTime 
+    tripTime,
+    leanAngle,
+    maxLean
 }: { 
     speed: number, 
     isDriving: boolean, 
@@ -82,74 +111,72 @@ const DashboardHeader = ({
     altitude: number | null,
     heading: number | null,
     accuracy: number,
-    tripTime: string
+    tripTime: string,
+    leanAngle: number,
+    maxLean: { left: number, right: number }
 }) => (
-    <div className="flex-none bg-[#0b0f19] border-b border-slate-800 pb-4 pt-4 px-6 z-50 shadow-2xl relative overflow-hidden">
+    <div className="flex-none bg-[#0b0f19] border-b border-slate-800 pb-2 pt-4 px-4 z-50 shadow-2xl relative overflow-hidden">
         {/* Ambient Glow */}
         <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-1/2 bg-cyan-500/10 blur-3xl rounded-full transition-opacity duration-700 ${isDriving ? 'opacity-100' : 'opacity-0'}`}></div>
 
-        <div className="flex items-center justify-between relative z-10">
+        <div className="grid grid-cols-3 gap-2 relative z-10 items-start">
             
-            {/* LEFT: SPEED & MAIN METRIC */}
-            <div className="flex items-center gap-6">
-                <div className="relative">
-                    <div className="flex items-baseline">
-                        <span className="text-[5rem] font-black text-white leading-none tracking-tighter tabular-nums drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-                            {speed}
-                        </span>
-                        <span className="text-sm font-black text-cyan-500 ml-2 mb-2 tracking-widest">KMH</span>
-                    </div>
-                    {/* RPM Bar Simulation */}
-                    <div className="w-full h-1.5 bg-slate-800 rounded-full mt-1 overflow-hidden">
-                         <div className="h-full bg-gradient-to-r from-cyan-500 via-emerald-400 to-red-500 transition-all duration-300" style={{ width: `${Math.min((speed / 180) * 100, 100)}%` }}></div>
-                    </div>
+            {/* LEFT: SPEED */}
+            <div className="col-span-1 flex flex-col justify-start pt-2">
+                <div className="flex items-baseline">
+                    <span className="text-6xl font-black text-white leading-none tracking-tighter tabular-nums drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+                        {speed}
+                    </span>
                 </div>
-
-                {/* Vertical Divider */}
-                <div className="h-16 w-[1px] bg-gradient-to-b from-transparent via-slate-700 to-transparent"></div>
-
-                {/* SECONDARY METRICS (Altitude & Heading) */}
-                <div className="flex flex-col justify-center space-y-2">
-                    {/* Altitude */}
-                    <div className="flex items-center gap-2 text-slate-400">
-                        <Mountain size={16} className={altitude && altitude > 500 ? "text-amber-400" : "text-slate-500"} />
-                        <span className="text-sm font-bold font-mono text-white">{altitude ? Math.round(altitude) : '---'}</span>
-                        <span className="text-[9px] font-bold">M</span>
+                <div className="text-xs font-black text-cyan-500 tracking-widest mt-1">KM/H</div>
+                
+                <div className="mt-4 flex flex-col space-y-1">
+                     <div className="flex items-center gap-2 text-slate-400">
+                        <Mountain size={14} className={altitude && altitude > 500 ? "text-amber-400" : "text-slate-500"} />
+                        <span className="text-xs font-bold font-mono text-white">{altitude ? Math.round(altitude) : '0'}m</span>
                     </div>
-                    {/* Heading */}
                     <div className="flex items-center gap-2 text-slate-400">
-                        <Compass size={16} style={{ transform: `rotate(${heading || 0}deg)` }} className="text-cyan-500 transition-transform duration-500" />
-                        <span className="text-sm font-bold font-mono text-white">{heading ? Math.round(heading) : '---'}°</span>
-                        <span className="text-[9px] font-bold">YÖN</span>
+                        <Compass size={14} style={{ transform: `rotate(${heading || 0}deg)` }} className="text-cyan-500 transition-transform duration-500" />
+                        <span className="text-xs font-bold font-mono text-white">{heading ? Math.round(heading) : '0'}°</span>
                     </div>
                 </div>
             </div>
 
-            {/* RIGHT: CONTROLS & STATUS */}
-            <div className="flex flex-col items-end gap-2">
-                 <div className="flex items-center gap-3 bg-slate-900/50 p-1.5 pr-3 pl-3 rounded-full border border-slate-800">
-                     <GPSSignalIndicator accuracy={accuracy} />
-                     <div className="w-[1px] h-4 bg-slate-700"></div>
+            {/* CENTER: LEAN ANGLE (NEW) */}
+            <div className="col-span-1 flex justify-center">
+                <LeanGauge angle={leanAngle} maxLeft={maxLean.left} maxRight={maxLean.right} />
+            </div>
+
+            {/* RIGHT: CONTROLS */}
+            <div className="col-span-1 flex flex-col items-end gap-3 pt-1">
+                 <div className="flex items-center gap-2 bg-slate-900/80 p-1 pr-2 pl-2 rounded-full border border-slate-800">
+                     <div className="flex flex-col items-end">
+                         <div className="flex gap-0.5 h-2">
+                             {[1,2,3,4].map(b => (
+                                 <div key={b} className={`w-1 rounded-sm ${accuracy > 0 && accuracy <= (50/b) ? 'bg-emerald-400' : 'bg-slate-700'}`}></div>
+                             ))}
+                         </div>
+                     </div>
                      <div className={`w-2 h-2 rounded-full ${isDriving ? 'bg-red-500 animate-ping' : 'bg-emerald-500'}`}></div>
                  </div>
 
                  <button 
                     onClick={onToggleDrive} 
-                    className={`h-12 px-6 rounded-xl flex items-center justify-center gap-2 transition-all font-bold tracking-wide shadow-lg ${
+                    className={`h-14 w-full rounded-2xl flex flex-col items-center justify-center transition-all font-bold tracking-wide shadow-lg ${
                         isDriving 
-                        ? 'bg-red-500/10 border border-red-500/50 text-red-500 hover:bg-red-500/20' 
-                        : 'bg-cyan-500 text-slate-900 hover:bg-cyan-400 hover:shadow-[0_0_20px_rgba(6,182,212,0.4)]'
+                        ? 'bg-red-500/10 border border-red-500/50 text-red-500 active:bg-red-500/20' 
+                        : 'bg-cyan-500 text-slate-900 hover:bg-cyan-400 active:scale-95 shadow-[0_0_15px_rgba(6,182,212,0.4)]'
                     }`}
                 >
                     {isDriving ? (
                         <>
-                           <Timer size={18} />
-                           <span className="font-mono">{tripTime}</span>
+                           <span className="text-lg font-mono leading-none">{tripTime}</span>
+                           <span className="text-[9px] opacity-70">DURDUR</span>
                         </>
                     ) : (
                         <>
-                           <Zap size={18} fill="currentColor" />
-                           BAŞLA
+                           <Zap size={20} fill="currentColor" className="mb-1" />
+                           <span className="text-[10px] leading-none">BAŞLA</span>
                         </>
                     )}
                 </button>
@@ -166,7 +193,6 @@ const ConditionCard = ({ weatherData }: { weatherData: WeatherData[] }) => {
     const maxRainProb = Math.max(...weatherData.map(w => w.rainProb));
     const maxWind = Math.max(...weatherData.map(w => w.windSpeed));
     
-    // Tire Temp Simulation Logic
     let tireStatus = "SOĞUK";
     let tireColor = "text-blue-400";
     if (avgTemp > 15) { tireStatus = "İDEAL"; tireColor = "text-emerald-400"; }
@@ -189,9 +215,7 @@ const ConditionCard = ({ weatherData }: { weatherData: WeatherData[] }) => {
 
     return (
         <div className="mx-4 mt-4 p-0 rounded-3xl bg-slate-900/80 border border-slate-700 shadow-xl overflow-hidden backdrop-blur-sm">
-             {/* Gradient Top Line */}
              <div className={`h-1 w-full bg-gradient-to-r from-transparent via-${conditionColor.split('-')[1]}-500 to-transparent opacity-70`}></div>
-             
              <div className="p-5 flex items-center justify-between">
                  <div className="flex items-center gap-4">
                      <div className="p-3 bg-slate-800 rounded-2xl border border-slate-700 shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)]">
@@ -222,25 +246,16 @@ const ConditionCard = ({ weatherData }: { weatherData: WeatherData[] }) => {
     );
 };
 
-// 3. ROADBOOK ROW
 const RoadbookRow = ({ dist, weather, isLast }: { dist: number, weather: WeatherData, isLast: boolean }) => {
     const isWet = weather.rainProb > 40 || weather.rain > 0.5;
-    
     return (
         <div className="flex gap-4 relative pl-4 pr-4">
-            {/* Timeline Line */}
             <div className="absolute left-[5.5rem] top-0 bottom-0 w-0.5 bg-slate-800 -z-10"></div>
-            
-            {/* Distance Pill */}
             <div className="w-16 py-4 flex flex-col items-center justify-center shrink-0 z-10 bg-[#0b0f19] my-2">
                  <div className="text-xl font-black text-white font-mono">{dist}</div>
                  <div className="text-[9px] text-slate-500 font-bold">KM</div>
             </div>
-
-            {/* Connection Dot */}
             <div className={`w-3 h-3 rounded-full mt-7 ml-[0.35rem] shrink-0 border-2 border-[#0b0f19] z-20 ${isWet ? 'bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.8)]' : 'bg-slate-600'}`}></div>
-
-            {/* Content Card */}
             <div className={`flex-1 mb-3 rounded-xl p-4 border flex items-center justify-between shadow-lg transition-all ${
                 isWet 
                 ? 'bg-gradient-to-r from-slate-900 via-slate-900 to-cyan-900/20 border-cyan-900/50' 
@@ -258,7 +273,6 @@ const RoadbookRow = ({ dist, weather, isLast }: { dist: number, weather: Weather
                          </div>
                      </div>
                  </div>
-                 
                  {isWet && <div className="px-2 py-1 rounded bg-cyan-500/10 border border-cyan-500/30 text-[10px] text-cyan-400 font-bold uppercase">KAYGAN</div>}
             </div>
         </div>
@@ -284,23 +298,16 @@ const App: React.FC = () => {
   const [accuracy, setAccuracy] = useState<number>(0);
   const [tripTime, setTripTime] = useState("00:00");
   
+  // Sensor State
+  const [leanAngle, setLeanAngle] = useState(0);
+  const [maxLean, setMaxLean] = useState({ left: 0, right: 0 });
+  
   const [isLoading, setIsLoading] = useState(false);
   
   // Refs
   const watchIdRef = useRef<number | null>(null);
   const tripStartRef = useRef<number | null>(null);
   const timerRef = useRef<any>(null);
-
-  // --- INIT LOCATION ---
-  useEffect(() => {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-            const addr = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
-            setStartLoc({ name: addr, lat: pos.coords.latitude, lng: pos.coords.longitude });
-            setStartQuery(addr);
-        });
-    }
-  }, []);
 
   // --- SEARCH ---
   useEffect(() => {
@@ -332,21 +339,57 @@ const App: React.FC = () => {
       } catch (err) { alert("Hata: " + err); } finally { setIsLoading(false); }
   };
 
-  const runDemo = async () => {
-      const demoStart: LocationData = { name: "Barbaros, Tekirdağ", lat: 40.9250, lng: 27.4750 };
-      const demoEnd: LocationData = { name: "42 Maslak, İstanbul", lat: 41.1141, lng: 29.0235 };
-      setStartLoc(demoStart); setStartQuery(demoStart.name);
-      setEndLoc(demoEnd); setEndQuery(demoEnd.name);
-      await calculateRoute(demoStart, demoEnd);
+  // --- LOCATION HELPER ---
+  const handleUseCurrentLocation = (field: 'start' | 'end') => {
+      if (!navigator.geolocation) { alert("GPS desteklenmiyor."); return; }
+      
+      setIsLoading(true);
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+          try {
+            const addr = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+            const loc = { name: addr, lat: pos.coords.latitude, lng: pos.coords.longitude };
+            
+            if (field === 'start') { setStartLoc(loc); setStartQuery(addr); }
+            else { setEndLoc(loc); setEndQuery(addr); }
+          } catch(e) { alert("Konum alınamadı"); }
+          finally { setIsLoading(false); }
+      }, (err) => {
+          setIsLoading(false);
+          alert("Konum izni verilmeli.");
+      });
   };
 
-  // --- ADVANCED GPS LOGIC ---
+  // --- SENSORS & GPS ---
+  
+  // Orientation Handler
+  const handleOrientation = (event: DeviceOrientationEvent) => {
+      // Gamma is usually Left/Right tilt (-90 to 90) in Landscape/Portrait
+      // We assume standard landscape mounting for now or portrait. 
+      // Gamma is left/right tilt around Y axis.
+      let angle = event.gamma || 0;
+      
+      // Simple smoothing could be added here, but direct feed is responsive
+      // Clamp for UI safety
+      if (angle > 90) angle = 90;
+      if (angle < -90) angle = -90;
+
+      setLeanAngle(angle);
+
+      // Track Max
+      setMaxLean(prev => ({
+          left: angle < 0 ? Math.max(prev.left, Math.abs(angle)) : prev.left,
+          right: angle > 0 ? Math.max(prev.right, angle) : prev.right
+      }));
+  };
+
   const toggleDriveMode = () => {
       if (isDriving) {
           // Stop
           setIsDriving(false);
           if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current);
           if (timerRef.current) clearInterval(timerRef.current);
+          window.removeEventListener('deviceorientation', handleOrientation);
+          
           setCurrentSpeed(0);
           setAltitude(null);
           setHeading(null);
@@ -354,10 +397,23 @@ const App: React.FC = () => {
           setTripTime("00:00");
       } else {
           // Start
+          // Request Sensor Permissions (iOS 13+)
+          if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+              (DeviceOrientationEvent as any).requestPermission()
+                  .then((permissionState: string) => {
+                      if (permissionState === 'granted') {
+                          window.addEventListener('deviceorientation', handleOrientation);
+                      }
+                  })
+                  .catch(console.error);
+          } else {
+              // Non-iOS 13+ devices
+              window.addEventListener('deviceorientation', handleOrientation);
+          }
+
           setIsDriving(true);
           tripStartRef.current = Date.now();
           
-          // Trip Timer
           timerRef.current = setInterval(() => {
               if (tripStartRef.current) {
                   const diff = Math.floor((Date.now() - tripStartRef.current) / 1000);
@@ -371,26 +427,17 @@ const App: React.FC = () => {
               watchIdRef.current = navigator.geolocation.watchPosition(
                   pos => {
                       const { speed, altitude, heading, accuracy } = pos.coords;
-                      
-                      // Speed Smoothing (Weighted Average to reduce jitter)
                       const kmh = speed ? speed * 3.6 : 0;
                       setCurrentSpeed(prev => {
-                          // Ignore crazy jumps (e.g. GPS glitch 0 -> 100 instantly without logic)
                           if (Math.abs(kmh - prev) > 40 && prev > 10) return prev; 
-                          // Smooth filter
                           return Math.round(prev * 0.6 + kmh * 0.4); 
                       });
-
                       setAltitude(altitude);
                       setHeading(heading);
                       setAccuracy(accuracy || 0);
                   },
                   err => console.warn("GPS Error", err),
-                  { 
-                      enableHighAccuracy: true, // Forces GPS chip usage over Wifi triangulation
-                      maximumAge: 0, // No cached positions, real-time only
-                      timeout: 5000 // Wait 5s for high accuracy lock
-                  }
+                  { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
               );
           }
       }
@@ -408,6 +455,8 @@ const App: React.FC = () => {
         heading={heading}
         accuracy={accuracy}
         tripTime={tripTime}
+        leanAngle={leanAngle}
+        maxLean={maxLean}
       />
 
       {/* 2. CONTENT */}
@@ -418,35 +467,45 @@ const App: React.FC = () => {
               <div className="flex-1 flex flex-col justify-center px-6 max-w-lg mx-auto w-full space-y-6 animate-in fade-in zoom-in duration-300">
                    <div className="text-center mb-4">
                        <h1 className="text-3xl font-black italic tracking-tighter text-white drop-shadow-lg">ROTA ANALİZİ</h1>
-                       <p className="text-slate-500 text-sm mt-2">Sürüş öncesi asfalt ve hava durumu raporu.</p>
+                       <p className="text-slate-500 text-sm mt-2">Mekan, AVM veya Şehir arayın.</p>
                    </div>
 
                    <div className="space-y-4">
+                       {/* START INPUT */}
                        <div className="group relative">
                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-cyan-500"><MapPin /></div>
                            <input 
                               value={startQuery}
                               onChange={e => setStartQuery(e.target.value)}
                               onFocus={() => setActiveSearchField('start')}
-                              placeholder="Neredesin?"
-                              className="w-full bg-slate-800/80 border-2 border-slate-700 rounded-2xl h-16 pl-14 pr-4 text-lg font-bold text-white focus:border-cyan-500 outline-none transition-all placeholder:text-slate-600"
+                              placeholder="Çıkış noktası..."
+                              className="w-full bg-slate-800/80 border-2 border-slate-700 rounded-2xl h-16 pl-14 pr-14 text-lg font-bold text-white focus:border-cyan-500 outline-none transition-all placeholder:text-slate-600"
                            />
+                           <button onClick={() => handleUseCurrentLocation('start')} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-slate-700/50 hover:bg-cyan-500 text-slate-300 hover:text-white transition-all">
+                               <Crosshair size={20} />
+                           </button>
                        </div>
+
+                       {/* END INPUT */}
                        <div className="group relative">
                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-500"><Navigation /></div>
                            <input 
                               value={endQuery}
                               onChange={e => setEndQuery(e.target.value)}
                               onFocus={() => setActiveSearchField('end')}
-                              placeholder="Hedef neresi?"
-                              className="w-full bg-slate-800/80 border-2 border-slate-700 rounded-2xl h-16 pl-14 pr-4 text-lg font-bold text-white focus:border-amber-500 outline-none transition-all placeholder:text-slate-600"
+                              placeholder="Hedef (Örn: Starbucks, Bodrum)"
+                              className="w-full bg-slate-800/80 border-2 border-slate-700 rounded-2xl h-16 pl-14 pr-14 text-lg font-bold text-white focus:border-amber-500 outline-none transition-all placeholder:text-slate-600"
                            />
+                           <button onClick={() => handleUseCurrentLocation('end')} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-slate-700/50 hover:bg-amber-500 text-slate-300 hover:text-white transition-all">
+                               <Crosshair size={20} />
+                           </button>
                        </div>
+
                        {searchResults.length > 0 && (
                            <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden max-h-48 overflow-y-auto z-50 shadow-2xl">
                                {searchResults.map((r, i) => (
                                    <div key={i} onClick={() => handleSelectLoc(r)} className="p-4 border-b border-slate-700 hover:bg-slate-700 cursor-pointer flex justify-between items-center">
-                                       <span className="font-bold text-white">{r.name}</span>
+                                       <span className="font-bold text-white truncate max-w-[70%]">{r.name}</span>
                                        <span className="text-xs text-slate-400">{r.admin1}</span>
                                    </div>
                                ))}
@@ -460,12 +519,8 @@ const App: React.FC = () => {
                          disabled={isLoading || !startLoc || !endLoc}
                          className="w-full h-16 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-2xl font-black text-xl text-white shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                        >
-                           {isLoading ? "ANALİZ YAPILIYOR..." : "HESAPLA"}
+                           {isLoading ? "ANALİZ YAPILIYOR..." : "ROTAYI HESAPLA"}
                            {!isLoading && <TrendingUp size={24} />}
-                       </button>
-
-                       <button onClick={runDemo} disabled={isLoading} className="w-full h-12 bg-slate-800 border border-slate-700 rounded-xl text-slate-400 font-bold hover:bg-slate-700 hover:text-white transition-all flex items-center justify-center gap-2 text-sm">
-                           <FlaskConical size={16} /> TEST ET
                        </button>
                    </div>
               </div>
@@ -475,10 +530,10 @@ const App: React.FC = () => {
           {radarPoints.length > 0 && (
               <div className="flex-1 flex flex-col h-full overflow-hidden">
                   <ConditionCard weatherData={radarPoints.map(p => p.weather)} />
-                  <div className="mt-6 px-6 pb-2 flex justify-between items-end border-b border-slate-800 mx-4">
+                  <div className="mt-4 px-6 pb-2 flex justify-between items-end border-b border-slate-800 mx-4">
                       <h2 className="text-xs font-black text-slate-500 tracking-[0.2em] uppercase">Yol Planı</h2>
-                      <button onClick={() => setRadarPoints([])} className="text-[10px] font-bold text-red-500 hover:text-red-400 uppercase tracking-wider mb-1 px-2 py-1 bg-red-900/10 rounded">
-                          Sıfırla
+                      <button onClick={() => { setRadarPoints([]); setLeanAngle(0); setMaxLean({left:0, right:0}); }} className="text-[10px] font-bold text-red-500 hover:text-red-400 uppercase tracking-wider mb-1 px-2 py-1 bg-red-900/10 rounded flex items-center gap-1">
+                          <RotateCcw size={10} /> Çıkış
                       </button>
                   </div>
                   <div className="flex-1 overflow-y-auto no-scrollbar px-2 pb-20 fade-mask">
