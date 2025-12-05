@@ -1,66 +1,56 @@
 
-// Global declaration for Leaflet loaded via CDN
-declare global {
-  interface Window {
-    L: any;
-  }
-}
-
 export interface LocationData {
   name: string;
   lat: number;
   lng: number;
-  admin1?: string; // Province/State
-  type?: string; // Type of location (city, amenity, etc.)
+  admin1?: string;
 }
 
 export interface WeatherData {
   lat: number;
   lng: number;
   temp: number;
+  feelsLike: number;
   windSpeed: number;
-  windDirection: number; // Added for Sail Effect
+  windDirection: number;
   rain: number;
-  rainProb: number; // Probability %
+  rainProb: number;
   weatherCode: number;
-  hourlyRainForecast?: number[]; // Array of probabilities for the next 24h
 }
 
-export interface PoiData {
-  id: number;
-  lat: number;
-  lng: number;
-  name: string;
-  type: 'fuel' | 'food' | 'sight';
+export interface TelemetryData {
+  speed: number;
+  altitude: number;
+  heading: number;
+  accuracy: number;
+  leanAngle: number;
+  gForce?: number;
 }
 
-export interface RadioStation {
-  stationuuid: string;
-  name: string;
-  url_resolved: string;
-  favicon: string;
-  tags: string;
-  country: string;
-}
-
-export interface RouteSegment {
-  name: string; // e.g. "İstanbul Çıkışı - Tem Otoyolu"
-  description: string; // "Yoğun trafik, dikkatli şerit değişimi."
-  risk: "Düşük" | "Orta" | "Yüksek";
-}
-
-export interface PitStop {
-  type: string; // e.g. "Benzin & Kahve", "Manzara", "Yemek"
-  locationDescription: string; // "Bolu Tüneli çıkışındaki tesisler"
-  reason: string; // "Sıcak bir kahve ve motoru dinlendirmek için ideal."
+export interface CoPilotAnalysis {
+  status: 'safe' | 'caution' | 'danger';
+  message: string;
+  roadCondition: string;
+  color: string;
 }
 
 export interface ElevationStats {
-  min: number;
   max: number;
+  min: number;
   avg: number;
-  gain: number; // Total ascent
-  points: number[]; // Array of heights for graphing
+  gain: number;
+}
+
+export interface RouteSegment {
+  name: string;
+  description: string;
+  risk: string;
+}
+
+export interface PitStop {
+  type: string;
+  locationDescription: string;
+  reason: string;
 }
 
 export interface RouteAnalysis {
@@ -69,43 +59,12 @@ export interface RouteAnalysis {
   elevationDetails: string;
   windWarning: string;
   gearAdvice: string;
-  roadCondition: string; 
+  roadCondition: string;
   scenicScore: string;
-  // New Features
   segments: RouteSegment[];
   pitStops: PitStop[];
-  playlistVibe: string; // Used for Radio Tag
-  playlistTag: string; // Technical tag for API
-  elevationStats?: ElevationStats; // Added structured data
-}
-
-export interface RouteStep {
-  maneuver: {
-      location: [number, number];
-      type: string;
-      modifier?: string;
-  };
-  name: string;
-  duration: number;
-  distance: number;
-  instruction: string; // Calculated Turkish instruction
-}
-
-export interface RouteAlternative {
-  type: 'fastest' | 'scenic';
-  name: string; // "Otoban / Hızlı" or "Köy Yolu / Manzaralı"
-  coordinates: [number, number][];
-  distance: number; // meters
-  duration: number; // seconds
-  color: string;
-  tags: string[]; // e.g. ["Ücretli", "Hızlı"] or ["Ücretsiz", "Virajlı"]
-  description: string; // Brief description for the card
-  steps: RouteStep[]; // Turn-by-turn steps
-}
-
-export interface RouteGeometry {
-  coordinates: [number, number][]; // [lng, lat] from OSRM/Google
-  distance: number;
-  duration: number;
-  alternatives?: any[];
+  playlistVibe: string;
+  playlistTag: string;
+  elevationStats?: ElevationStats;
+  weatherInsight: string;
 }
