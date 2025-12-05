@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download, Settings, RefreshCw, CheckCircle2, Moon, Maximize2, X, Battery, BatteryCharging, Timer, TrendingUp, Shield, ShieldAlert, ShieldCheck, Bike, Bluetooth, Smartphone, Radio, Play, Pause, SkipForward, Music, Headphones, Crosshair, Move, Volume2, StopCircle } from 'lucide-react';
+import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download, Settings, RefreshCw, CheckCircle2, Moon, Maximize2, X, Battery, BatteryCharging, Timer, TrendingUp, Shield, ShieldAlert, ShieldCheck, Bike, Bluetooth, Smartphone, Radio, Play, Pause, SkipForward, Music, Headphones, Crosshair, Move, Volume2, StopCircle, BarChart3 } from 'lucide-react';
 import { WeatherData, CoPilotAnalysis } from './types';
 import { getWeatherForPoint, reverseGeocode } from './services/api';
 
-// --- RADIO STATIONS (UPDATED: DIRECT TRAFFIC STREAMS) ---
-// Using traffic.streamtheworld.com for robust load-balanced MP3 streams
+// --- RADIO STATIONS (UPDATED: STABLE PLAYER SERVICES) ---
+// Removed Power FM, added Joy FM as reliable replacement
 const RADIO_STATIONS = [
-    { name: "Power FM", url: "https://listen.powerapp.com.tr/powerfm/icecast.audio" },
+    { name: "Joy FM", url: "https://playerservices.streamtheworld.com/api/livestream-redirect/JOY_FM_SC" },
     { name: "Fenomen", url: "https://listen.radyofenomen.com/fenomen/128/icecast.audio" },
-    { name: "Metro FM", url: "https://traffic.streamtheworld.com/METRO_FM_SC" },
-    { name: "Virgin Radio", url: "https://traffic.streamtheworld.com/VIRGIN_RADIO_SC" },
-    { name: "Joy Turk", url: "https://traffic.streamtheworld.com/JOY_TURK_SC" },
-    { name: "Süper FM", url: "https://traffic.streamtheworld.com/SUPER_FM_SC" }
+    { name: "Metro FM", url: "https://playerservices.streamtheworld.com/api/livestream-redirect/METRO_FM_SC" },
+    { name: "Virgin Radio", url: "https://playerservices.streamtheworld.com/api/livestream-redirect/VIRGIN_RADIO_SC" },
+    { name: "Joy Turk", url: "https://playerservices.streamtheworld.com/api/livestream-redirect/JOY_TURK_SC" },
+    { name: "Süper FM", url: "https://playerservices.streamtheworld.com/api/livestream-redirect/SUPER_FM_SC" }
 ];
 
 // --- MATH UTILS ---
@@ -72,205 +72,225 @@ const analyzeConditions = (weather: WeatherData | null): CoPilotAnalysis => {
 
 // --- SUB-COMPONENTS ---
 
-// 1. DETAIL MODAL (Expanded View)
+// 1. DETAIL MODAL (Refactored to Centered Popup)
 const DetailOverlay = ({ type, data, onClose, theme, radioHandlers }: any) => {
     if (!type) return null;
     const isDark = theme === 'dark';
-    const bgClass = isDark ? "bg-[#0b0f19]/95" : "bg-slate-50/95";
+    // Popup style instead of full screen
+    const bgClass = isDark ? "bg-[#111827]" : "bg-white";
     const textClass = isDark ? "text-white" : "text-slate-900";
-    const borderClass = isDark ? "border-slate-800" : "border-slate-200";
+    const borderClass = isDark ? "border-slate-700" : "border-slate-200";
 
     return (
-        <div className={`fixed inset-0 z-50 flex flex-col p-6 backdrop-blur-md animate-in slide-in-from-bottom-10 ${bgClass} ${textClass}`}>
-            <div className="flex justify-between items-center mb-6 shrink-0">
-                <h2 className="text-2xl font-black uppercase tracking-widest">
-                    {type === 'speed' ? 'Sürüş Özeti' : 
-                     type === 'weather' ? 'Hava Detayı' : 
-                     type === 'copilot' ? 'Taktiksel Analiz' : 
-                     type === 'radio' ? 'Radyo Kanalları' :
-                     'Performans Telemetrisi'}
-                </h2>
-                <button onClick={(e) => { e.stopPropagation(); onClose(); }} className={`p-2 rounded-full ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
-                    <X size={24} />
-                </button>
-            </div>
+        <div 
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={onClose}
+        >
+            <div 
+                className={`w-full max-w-md max-h-[85vh] rounded-3xl shadow-2xl flex flex-col border overflow-hidden animate-in zoom-in-95 duration-200 ${bgClass} ${borderClass} ${textClass}`}
+                onClick={e => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div className={`p-5 flex justify-between items-center shrink-0 border-b ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+                    <h2 className="text-xl font-black uppercase tracking-wider flex items-center gap-2">
+                        {type === 'radio' && <Radio className="text-cyan-500" />}
+                        {type === 'speed' && <TrendingUp className="text-cyan-500" />}
+                        {type === 'weather' && <Cloud className="text-cyan-500" />}
+                        {type === 'copilot' && <ShieldCheck className="text-cyan-500" />}
+                        {type === 'lean' && <Activity className="text-cyan-500" />}
+                        <span>
+                            {type === 'speed' ? 'Sürüş Özeti' : 
+                             type === 'weather' ? 'Hava Detayı' : 
+                             type === 'copilot' ? 'Taktiksel Analiz' : 
+                             type === 'radio' ? 'Radyo Paneli' :
+                             'Telemetri'}
+                        </span>
+                    </h2>
+                    <button onClick={onClose} className={`p-2 rounded-full transition-colors ${isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-slate-100 hover:bg-slate-200'}`}>
+                        <X size={20} />
+                    </button>
+                </div>
 
-            <div className="flex-1 flex flex-col gap-4 overflow-y-auto no-scrollbar pb-10">
-                {type === 'radio' && (
-                    <div className="grid grid-cols-1 gap-3">
-                         {/* Stop Button */}
-                         <button 
-                            onClick={() => radioHandlers.stop()}
-                            className={`p-4 rounded-2xl border-2 flex items-center justify-between transition-all active:scale-95 ${!radioHandlers.isPlaying ? 'border-slate-700 bg-slate-800/50' : 'border-rose-500/50 bg-rose-500/10'}`}
-                        >
-                            <span className="font-black text-lg text-rose-500">RADYOYU KAPAT</span>
-                            <StopCircle size={28} className="text-rose-500" />
-                        </button>
-                        
-                        <div className="h-px w-full bg-slate-700/50 my-2"></div>
-
-                        {RADIO_STATIONS.map((station: any, idx: number) => {
-                            const isActive = radioHandlers.currentStation === idx && radioHandlers.isPlaying;
-                            return (
-                                <button
-                                    key={idx}
-                                    onClick={() => radioHandlers.play(idx)}
-                                    className={`p-5 rounded-2xl border-2 flex items-center justify-between transition-all active:scale-95
-                                        ${isActive 
-                                            ? 'border-cyan-500 bg-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.3)]' 
-                                            : `border-slate-700 ${isDark ? 'bg-slate-800' : 'bg-white'}`
-                                        }`}
-                                >
-                                    <div className="flex flex-col items-start">
-                                        <span className={`text-xl font-black ${isActive ? 'text-cyan-400' : ''}`}>{station.name}</span>
-                                        {isActive && <span className="text-[10px] font-bold text-cyan-500 tracking-widest animate-pulse">ŞU AN ÇALIYOR</span>}
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto no-scrollbar p-5">
+                    {type === 'radio' && (
+                        <div className="flex flex-col gap-4">
+                            {/* Control Bar */}
+                            <div className={`p-4 rounded-2xl flex items-center justify-between border ${radioHandlers.isPlaying ? 'border-cyan-500/30 bg-cyan-500/10' : `border-slate-700/50 ${isDark ? 'bg-slate-800/50' : 'bg-slate-50'}`}`}>
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${radioHandlers.isPlaying ? 'bg-cyan-500 text-white animate-pulse' : 'bg-slate-700 text-slate-400'}`}>
+                                        {radioHandlers.isPlaying ? <Volume2 size={20} /> : <Radio size={20} />}
                                     </div>
-                                    {isActive ? <Volume2 size={24} className="text-cyan-400 animate-pulse" /> : <Play size={24} className="opacity-50" />}
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-bold opacity-60 uppercase">DURUM</span>
+                                        <span className={`font-black ${radioHandlers.isPlaying ? 'text-cyan-400' : ''}`}>
+                                            {radioHandlers.isPlaying ? 'ÇALIYOR' : 'HAZIRDA BEKLİYOR'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => radioHandlers.stop()}
+                                    className={`px-4 py-2 rounded-xl text-xs font-black border transition-all active:scale-95 ${radioHandlers.isPlaying ? 'bg-rose-500 text-white border-rose-600 shadow-lg shadow-rose-500/20' : 'opacity-50 cursor-not-allowed border-slate-600'}`}
+                                    disabled={!radioHandlers.isPlaying}
+                                >
+                                    DURDUR
                                 </button>
-                            )
-                        })}
-                    </div>
-                )}
+                            </div>
 
-                {type === 'speed' && (
-                    <>
-                        <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'}`}>
-                            <div className="flex items-center gap-2 mb-2 opacity-70">
-                                <TrendingUp size={20} className="text-cyan-500" />
-                                <span className="text-xs font-bold uppercase">Maksimum Hız</span>
+                            <span className="text-xs font-bold opacity-50 px-1">KANAL LİSTESİ</span>
+                            
+                            {/* Grid Layout for Cards */}
+                            <div className="grid grid-cols-2 gap-3">
+                                {RADIO_STATIONS.map((station: any, idx: number) => {
+                                    const isActive = radioHandlers.currentStation === idx && radioHandlers.isPlaying;
+                                    return (
+                                        <button
+                                            key={idx}
+                                            onClick={() => radioHandlers.play(idx)}
+                                            className={`relative p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-3 transition-all active:scale-95 aspect-square
+                                                ${isActive 
+                                                    ? 'border-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(6,182,212,0.2)]' 
+                                                    : `border-transparent ${isDark ? 'bg-slate-800 hover:bg-slate-750' : 'bg-slate-50 hover:bg-slate-100'} border-slate-700/30`
+                                                }`}
+                                        >
+                                            {isActive && (
+                                                <span className="absolute top-2 right-2 flex h-2 w-2">
+                                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                                                </span>
+                                            )}
+                                            
+                                            <div className={`p-3 rounded-full ${isActive ? 'bg-cyan-500 text-white' : 'bg-slate-700/30 text-slate-400'}`}>
+                                                <Music size={24} />
+                                            </div>
+                                            <span className={`text-sm font-black text-center leading-tight ${isActive ? 'text-cyan-400' : ''}`}>{station.name}</span>
+                                        </button>
+                                    )
+                                })}
                             </div>
-                            <div className="text-6xl font-black tabular-nums">{Math.round(data.maxSpeed)} <span className="text-xl">km/h</span></div>
                         </div>
-                        <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'}`}>
-                            <div className="flex items-center gap-2 mb-2 opacity-70">
-                                <Timer size={20} className="text-amber-500" />
-                                <span className="text-xs font-bold uppercase">Yapılan Yol</span>
-                            </div>
-                            <div className="text-6xl font-black tabular-nums">{data.tripDistance.toFixed(1)} <span className="text-xl">km</span></div>
-                        </div>
-                        <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'}`}>
-                             <div className="flex items-center gap-2 mb-2 opacity-70">
-                                <Activity size={20} className="text-emerald-500" />
-                                <span className="text-xs font-bold uppercase">Ortalama Hız</span>
-                            </div>
-                            <div className="text-6xl font-black tabular-nums">{data.avgSpeed} <span className="text-xl">km/h</span></div>
-                        </div>
-                    </>
-                )}
+                    )}
 
-                {type === 'weather' && (
-                    <>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className={`p-4 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'}`}>
-                                <span className="text-xs font-bold opacity-60 block mb-1">HİSSEDİLEN</span>
-                                <span className="text-4xl font-black">{Math.round(data.weather?.feelsLike || 0)}°</span>
-                            </div>
-                            <div className={`p-4 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'}`}>
-                                <span className="text-xs font-bold opacity-60 block mb-1">YAĞIŞ İHTİMALİ</span>
-                                <span className="text-4xl font-black text-cyan-500">%{data.weather?.rainProb}</span>
-                            </div>
-                        </div>
-                        <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'}`}>
-                             <div className="flex items-center gap-2 mb-4 opacity-70">
-                                <Wind size={24} />
-                                <span className="text-sm font-bold uppercase">Rüzgar Analizi</span>
-                            </div>
-                            <div className="flex justify-between items-end border-b pb-4 border-dashed border-slate-700/50 mb-4">
-                                <span>Gerçek</span>
-                                <span className="text-2xl font-bold">{Math.round(data.weather?.windSpeed || 0)} km/s</span>
-                            </div>
-                            <div className="flex justify-between items-end">
-                                <span>Hissedilen (Bağıl)</span>
-                                <span className={`text-3xl font-black ${data.apparentWind > 50 ? 'text-rose-500' : 'text-cyan-500'}`}>{data.apparentWind} km/s</span>
-                            </div>
-                            <p className="mt-4 text-xs opacity-60 leading-relaxed">
-                                Motosiklet üzerindeki hızınız rüzgar şiddetini artırır. Bu değer kaskınıza ve göğsünüze çarpan rüzgardır.
-                            </p>
-                        </div>
-                    </>
-                )}
-
-                {type === 'copilot' && (
-                    <div className="flex flex-col gap-4">
-                        <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'} flex items-center gap-4`}>
-                             {data.analysis.status === 'safe' ? <ShieldCheck size={48} className="text-emerald-500" /> : 
-                              data.analysis.status === 'caution' ? <Shield size={48} className="text-amber-500" /> : 
-                              <ShieldAlert size={48} className="text-rose-500" />}
-                             <div>
-                                 <h3 className={`text-xl font-black italic ${data.analysis.color}`}>{data.analysis.roadCondition}</h3>
-                                 <p className="text-sm opacity-70">{data.analysis.message}</p>
-                             </div>
-                        </div>
-
-                        <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'}`}>
-                            <div className="flex items-center gap-2 mb-4 opacity-70">
-                                <Bike size={20} />
-                                <span className="text-xs font-bold uppercase">Sürüş Tavsiyeleri</span>
-                            </div>
-                            <ul className="space-y-3 text-sm">
-                                <li className="flex gap-3 items-start">
-                                    <span className="bg-cyan-500/20 text-cyan-500 p-1 rounded">1</span>
-                                    <span>{data.weather?.temp < 15 ? "Lastikler soğuk olabilir, agresif yatıştan kaçın." : "Asfalt sıcaklığı ideal, lastik tutuşu yüksek."}</span>
-                                </li>
-                                <li className="flex gap-3 items-start">
-                                    <span className="bg-cyan-500/20 text-cyan-500 p-1 rounded">2</span>
-                                    <span>{data.weather?.windSpeed > 20 ? "Rüzgar hamlelerine karşı depo ile bütünleş, gidonu sıkma." : "Rüzgar stabil, konforlu sürüş."}</span>
-                                </li>
-                                <li className="flex gap-3 items-start">
-                                    <span className="bg-cyan-500/20 text-cyan-500 p-1 rounded">3</span>
-                                    <span>{data.weather?.rainProb > 20 ? "Yağmurluk erişilebilir bir yerde olsun." : "Yağış beklenmiyor, keyfini çıkar."}</span>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                )}
-
-                {type === 'lean' && (
-                    <div className="flex flex-col gap-4">
-                        <div className="grid grid-cols-3 gap-3">
-                            {/* Braking G */}
-                            <div className={`p-3 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'} flex flex-col items-center justify-center`}>
-                                <div className="mb-2 p-2 rounded-full bg-rose-500/20">
-                                    <ArrowUp size={20} className="text-rose-500 rotate-180" />
+                    {type === 'speed' && (
+                        <div className="space-y-4">
+                            <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+                                <div className="flex items-center gap-2 mb-2 opacity-70">
+                                    <TrendingUp size={20} className="text-cyan-500" />
+                                    <span className="text-xs font-bold uppercase">Maksimum Hız</span>
                                 </div>
-                                <span className="text-[10px] font-bold uppercase opacity-60">Frenleme</span>
-                                <span className="text-2xl font-black text-rose-500">{data.maxBrakeG.toFixed(1)}G</span>
+                                <div className="text-6xl font-black tabular-nums">{Math.round(data.maxSpeed)} <span className="text-xl">km/h</span></div>
                             </div>
-                             {/* Corner G */}
-                             <div className={`p-3 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'} flex flex-col items-center justify-center`}>
-                                <div className="mb-2 p-2 rounded-full bg-cyan-500/20">
-                                    <Activity size={20} className="text-cyan-500" />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className={`p-4 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+                                    <div className="flex items-center gap-2 mb-2 opacity-70">
+                                        <Timer size={16} className="text-amber-500" />
+                                        <span className="text-[10px] font-bold uppercase">Yol</span>
+                                    </div>
+                                    <div className="text-2xl font-black tabular-nums">{data.tripDistance.toFixed(1)} <span className="text-sm">km</span></div>
                                 </div>
-                                <span className="text-[10px] font-bold uppercase opacity-60">Viraj</span>
-                                <span className="text-2xl font-black text-cyan-500">{data.maxCornerG.toFixed(1)}G</span>
-                            </div>
-                            {/* Accel G */}
-                            <div className={`p-3 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'} flex flex-col items-center justify-center`}>
-                                <div className="mb-2 p-2 rounded-full bg-emerald-500/20">
-                                    <ArrowUp size={20} className="text-emerald-500" />
+                                <div className={`p-4 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+                                     <div className="flex items-center gap-2 mb-2 opacity-70">
+                                        <Activity size={16} className="text-emerald-500" />
+                                        <span className="text-[10px] font-bold uppercase">Ortalama</span>
+                                    </div>
+                                    <div className="text-2xl font-black tabular-nums">{data.avgSpeed} <span className="text-sm">km/h</span></div>
                                 </div>
-                                <span className="text-[10px] font-bold uppercase opacity-60">İvmelenme</span>
-                                <span className="text-2xl font-black text-emerald-500">{data.maxAccelG.toFixed(1)}G</span>
                             </div>
                         </div>
+                    )}
 
-                        {/* Analysis Text */}
-                        <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'} space-y-4`}>
-                             <div className="flex gap-3">
-                                 <span className="text-rose-500 font-black whitespace-nowrap">Frenleme G:</span>
-                                 <p className="text-xs opacity-70">Fren yaparken oluşan öne yığılma kuvveti. 0.8G üzeri sert frenleme, 1.0G üzeri genellikle ABS sınırıdır.</p>
-                             </div>
-                             <div className="flex gap-3">
-                                 <span className="text-cyan-500 font-black whitespace-nowrap">Viraj G:</span>
-                                 <p className="text-xs opacity-70">Lastiklerin yana doğru tutunma kuvveti. Cadde lastikleriyle 1.0G üzeri risklidir, pist lastikleriyle 1.3G'ye çıkabilir.</p>
-                             </div>
-                             <div className="flex gap-3">
-                                 <span className="text-emerald-500 font-black whitespace-nowrap">Hızlanma G:</span>
-                                 <p className="text-xs opacity-70">Gaz açtığında seni geriye iten kuvvet. 0.5G üzeri, özellikle ıslak zeminde arka lastiğin kaymasına neden olabilir.</p>
+                    {type === 'weather' && (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className={`p-4 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+                                    <span className="text-xs font-bold opacity-60 block mb-1">HİSSEDİLEN</span>
+                                    <span className="text-4xl font-black">{Math.round(data.weather?.feelsLike || 0)}°</span>
+                                </div>
+                                <div className={`p-4 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+                                    <span className="text-xs font-bold opacity-60 block mb-1">YAĞIŞ RİSKİ</span>
+                                    <span className="text-4xl font-black text-cyan-500">%{data.weather?.rainProb}</span>
+                                </div>
+                            </div>
+                            <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+                                 <div className="flex items-center gap-2 mb-4 opacity-70">
+                                    <Wind size={24} />
+                                    <span className="text-sm font-bold uppercase">Rüzgar Analizi</span>
+                                </div>
+                                <div className="flex justify-between items-end border-b pb-4 border-dashed border-slate-700/50 mb-4">
+                                    <span>Gerçek Hız</span>
+                                    <span className="text-2xl font-bold">{Math.round(data.weather?.windSpeed || 0)} km/s</span>
+                                </div>
+                                <div className="flex justify-between items-end">
+                                    <span className="text-sm opacity-80">Sürüşte Hissedilen</span>
+                                    <span className={`text-3xl font-black ${data.apparentWind > 50 ? 'text-rose-500' : 'text-cyan-500'}`}>{data.apparentWind} km/s</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {type === 'copilot' && (
+                        <div className="flex flex-col gap-4">
+                            <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'} flex items-center gap-4`}>
+                                 {data.analysis.status === 'safe' ? <ShieldCheck size={48} className="text-emerald-500" /> : 
+                                  data.analysis.status === 'caution' ? <Shield size={48} className="text-amber-500" /> : 
+                                  <ShieldAlert size={48} className="text-rose-500" />}
+                                 <div>
+                                     <h3 className={`text-lg font-black italic ${data.analysis.color}`}>{data.analysis.roadCondition}</h3>
+                                     <p className="text-xs opacity-70 mt-1">{data.analysis.message}</p>
+                                 </div>
+                            </div>
+
+                            <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+                                <div className="flex items-center gap-2 mb-4 opacity-70">
+                                    <Bike size={20} />
+                                    <span className="text-xs font-bold uppercase">Sürüş Tavsiyeleri</span>
+                                </div>
+                                <ul className="space-y-3 text-sm">
+                                    <li className="flex gap-3 items-start">
+                                        <span className="bg-cyan-500/20 text-cyan-500 px-2 py-0.5 rounded text-xs font-bold">1</span>
+                                        <span>{data.weather?.temp < 15 ? "Lastikler soğuk olabilir, agresif yatıştan kaçın." : "Asfalt sıcaklığı ideal, lastik tutuşu yüksek."}</span>
+                                    </li>
+                                    <li className="flex gap-3 items-start">
+                                        <span className="bg-cyan-500/20 text-cyan-500 px-2 py-0.5 rounded text-xs font-bold">2</span>
+                                        <span>{data.weather?.windSpeed > 20 ? "Rüzgar hamlelerine karşı depo ile bütünleş." : "Rüzgar stabil, konforlu sürüş."}</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    )}
+
+                    {type === 'lean' && (
+                        <div className="flex flex-col gap-4">
+                            <div className="grid grid-cols-3 gap-2">
+                                {/* Braking G */}
+                                <div className={`p-3 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'} flex flex-col items-center justify-center`}>
+                                    <span className="text-[9px] font-bold uppercase opacity-60 mb-1">Fren</span>
+                                    <span className="text-xl font-black text-rose-500">{data.maxBrakeG.toFixed(1)}G</span>
+                                </div>
+                                 {/* Corner G */}
+                                 <div className={`p-3 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'} flex flex-col items-center justify-center`}>
+                                    <span className="text-[9px] font-bold uppercase opacity-60 mb-1">Viraj</span>
+                                    <span className="text-xl font-black text-cyan-500">{data.maxCornerG.toFixed(1)}G</span>
+                                </div>
+                                {/* Accel G */}
+                                <div className={`p-3 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'} flex flex-col items-center justify-center`}>
+                                    <span className="text-[9px] font-bold uppercase opacity-60 mb-1">Gaz</span>
+                                    <span className="text-xl font-black text-emerald-500">{data.maxAccelG.toFixed(1)}G</span>
+                                </div>
+                            </div>
+                            
+                             <div className={`p-4 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+                                <div className="flex items-center gap-2 mb-2 opacity-70">
+                                    <BarChart3 size={16} />
+                                    <span className="text-xs font-bold uppercase">G-Kuvveti Bilgisi</span>
+                                </div>
+                                <p className="text-xs opacity-60 leading-relaxed">
+                                    Motosiklet lastiklerinin yanal tutuş limiti genellikle 1.0G - 1.2G arasındadır. 0.8G üzeri değerler agresif sürüşe işaret eder.
+                                </p>
                              </div>
                         </div>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -823,13 +843,15 @@ const App: React.FC = () => {
         <audio 
             ref={audioRef}
             onError={(e) => {
-                console.error("Audio tag error:", e);
-                // Don't disable immediately on minor errors, but here we can just log
+                // Avoid circular structure error by logging specific properties
+                const target = e.currentTarget as HTMLAudioElement;
+                console.error("Radio Error:", target.error ? target.error.message : "Unknown", target.src);
+                setRadioPlaying(false);
             }}
-            // onEnded isn't very relevant for streams, but good practice
             onEnded={() => setRadioPlaying(false)}
             className="hidden"
-            crossOrigin="anonymous" 
+            crossOrigin="anonymous"
+            preload="none"
         />
 
         <CalibrationModal isOpen={showCalibration} onClose={() => setShowCalibration(false)} offset={compassOffset} />
