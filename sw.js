@@ -1,12 +1,20 @@
 
-const CACHE_NAME = 'motorota-v3';
+const CACHE_NAME = 'motorota-v5'; // Version bump
+const STATIC_ASSETS = [
+  './',
+  './index.html',
+  './manifest.json'
+];
 
-// Cache init
 self.addEventListener('install', (event) => {
-  self.skipWaiting(); // Activate worker immediately
+  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(STATIC_ASSETS).catch(err => console.warn("Cache incomplete", err));
+    })
+  );
 });
 
-// Cache cleanup
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -22,38 +30,39 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch handler
 self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+
   const url = new URL(event.request.url);
 
-  // 1. For Navigation (HTML page load), always go Network first, then fallback to cache, then fallback to index.html
-  // This fixes the "404" when opening PWA from a subdirectory or different path.
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request)
-        .catch(() => {
-          return caches.match('./index.html') || caches.match('./');
-        })
-    );
-    return;
-  }
-
-  // 2. For other assets (CSS, JS, Images) - Stale-While-Revalidate pattern is often best for apps like this, 
-  // but to avoid 404s on new deploys, let's use Network First.
+  // Network First Strategy
   event.respondWith(
     fetch(event.request)
-      .then((response) => {
-        // If valid response, clone and cache
-        if (response && response.status === 200 && response.type === 'basic') {
-          const responseToCache = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
+      .then((networkResponse) => {
+        // Check if we got a valid response
+        if (networkResponse && networkResponse.status === 200) {
+           // Cache it if it's a basic request (same-origin)
+           if (networkResponse.type === 'basic') {
+              const responseToCache = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(event.request, responseToCache);
+              });
+           }
+           return networkResponse;
         }
-        return response;
+
+        // Handle 404 for Navigation (SPA fallback)
+        if (event.request.mode === 'navigate' && networkResponse.status === 404) {
+          return caches.match('./index.html');
+        }
+
+        return networkResponse;
       })
       .catch(() => {
-        // If network fails, try cache
+        // Offline Fallback
+        if (event.request.mode === 'navigate') {
+          return caches.match('./index.html');
+        }
         return caches.match(event.request);
       })
   );

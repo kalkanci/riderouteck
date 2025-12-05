@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download } from 'lucide-react';
+import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download, Settings, RefreshCw } from 'lucide-react';
 import { WeatherData, CoPilotAnalysis } from './types';
 import { getWeatherForPoint, reverseGeocode } from './services/api';
 
@@ -7,41 +7,25 @@ import { getWeatherForPoint, reverseGeocode } from './services/api';
 const toRad = (deg: number) => deg * Math.PI / 180;
 
 // Calculates the "Apparent Wind" (The wind the rider feels)
-// combining Bike Velocity and True Wind Velocity vectors.
 const calculateApparentWind = (
     bikeSpeedKmh: number, 
     bikeHeading: number, 
     windSpeedKmh: number, 
     windDirectionFrom: number
 ): number => {
-    if (bikeSpeedKmh < 5) return windSpeedKmh; // If stopped, you feel the true wind.
+    if (bikeSpeedKmh < 5) return windSpeedKmh;
 
-    // 1. Vector of the "Induced Wind" (Headwind created by riding)
-    // It comes FROM the direction we are heading TO.
-    // Magnitude = Bike Speed.
-    // Direction = Bike Heading.
-    // We need X/Y components where 0 deg is North (Y axis).
-    // In Nav coordinates: X = sin(angle), Y = cos(angle).
-    // The "force" is pushing against us, so it flows towards (Heading + 180).
-    // Let's calculate the "Wind Flow Vector" relative to the ground.
-    
-    // Induced Wind Vector (Air moving relative to bike due to speed)
-    // Flow direction is opposite to heading (Heading + 180)
     const inducedFlowDir = bikeHeading + 180;
     const inducedX = bikeSpeedKmh * Math.sin(toRad(inducedFlowDir));
     const inducedY = bikeSpeedKmh * Math.cos(toRad(inducedFlowDir));
 
-    // True Wind Vector (Meteorological)
-    // Data comes as "Blowing FROM". So Flow direction is "Direction + 180".
     const trueFlowDir = windDirectionFrom + 180;
     const trueX = windSpeedKmh * Math.sin(toRad(trueFlowDir));
     const trueY = windSpeedKmh * Math.cos(toRad(trueFlowDir));
 
-    // Resultant Vector (Vector Sum)
     const resX = inducedX + trueX;
     const resY = inducedY + trueY;
 
-    // Magnitude
     const apparentSpeed = Math.sqrt(resX * resX + resY * resY);
     
     return Math.round(apparentSpeed);
@@ -62,15 +46,12 @@ const analyzeConditions = (weather: WeatherData | null): CoPilotAnalysis => {
     let score = 10;
     let msgs: string[] = [];
     
-    // Rain Logic
     if (weather.rainProb > 60 || weather.rain > 1.0) { score -= 5; msgs.push("Islak Zemin"); }
     else if (weather.rainProb > 30) { score -= 2; msgs.push("Yağmur Riski"); }
 
-    // Wind Logic
     if (weather.windSpeed > 40) { score -= 4; msgs.push("Şiddetli Rüzgar"); }
     else if (weather.windSpeed > 25) { score -= 2; msgs.push("Rüzgarlı"); }
 
-    // Temp Logic
     if (weather.temp < 5) { score -= 3; msgs.push("Gizli Buzlanma?"); }
     else if (weather.temp > 35) { score -= 1; msgs.push("Sıcak Asfalt"); }
 
@@ -98,7 +79,6 @@ const analyzeConditions = (weather: WeatherData | null): CoPilotAnalysis => {
 
 // --- COMPONENTS ---
 
-// 1. Digital Speedometer
 const Speedometer = ({ speed }: { speed: number }) => {
     let colorClass = "text-white";
     let glowClass = "bg-cyan-500/5";
@@ -118,7 +98,6 @@ const Speedometer = ({ speed }: { speed: number }) => {
     );
 };
 
-// 2. Lean Dashboard
 const LeanDashboard = ({ angle, maxLeft, maxRight, gForce, onReset }: { angle: number, maxLeft: number, maxRight: number, gForce: number, onReset: () => void }) => {
     const isLeft = angle < 0;
     const absAngle = Math.abs(angle);
@@ -166,11 +145,10 @@ const LeanDashboard = ({ angle, maxLeft, maxRight, gForce, onReset }: { angle: n
     );
 };
 
-// 3. Environment Grid (Updated with Apparent Wind)
 const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading }: { weather: WeatherData | null, analysis: CoPilotAnalysis, bikeSpeed: number, bikeHeading: number }) => {
     const rainWarning = weather && (weather.rainProb > 20 || weather.rain > 0.1);
     
-    // Calculate Apparent Wind (Bağıl Rüzgar)
+    // Calculate Apparent Wind
     const apparentWind = weather 
         ? calculateApparentWind(bikeSpeed, bikeHeading, weather.windSpeed, weather.windDirection) 
         : 0;
@@ -191,7 +169,6 @@ const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading }: { weather: Weath
             )}
 
             <div className="grid grid-cols-2 gap-3">
-                {/* Weather Card */}
                 <div className="bg-[#111827] border border-slate-800 rounded-2xl p-4 flex flex-col relative overflow-hidden shadow-lg h-full">
                     <div className="absolute top-2 right-2 opacity-30">{weather ? getWeatherIcon(weather.weatherCode, 32) : <Activity />}</div>
                     
@@ -206,7 +183,6 @@ const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading }: { weather: Weath
                         </div>
                     </div>
 
-                    {/* Wind Section - DYNAMIC */}
                     <div className="mt-3 border-t border-slate-800/50 pt-2">
                         <div className="flex justify-between items-end">
                             <div>
@@ -216,7 +192,6 @@ const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading }: { weather: Weath
                                     <span className="text-[9px] font-bold text-slate-400 mb-1">METEO</span>
                                 </div>
                             </div>
-                            {/* Apparent Wind Display */}
                             <div className={`text-right ${isMoving ? 'opacity-100' : 'opacity-40'} transition-opacity duration-500`}>
                                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">BAĞIL</span>
                                 <div className="flex items-end gap-1 justify-end">
@@ -230,7 +205,6 @@ const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading }: { weather: Weath
                     </div>
                 </div>
 
-                {/* Analysis Card */}
                 <div className={`bg-[#111827] border rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden shadow-lg transition-colors duration-500 h-full ${analysis.status === 'danger' ? 'border-rose-900/50 bg-rose-900/10' : analysis.status === 'caution' ? 'border-amber-900/50 bg-amber-900/10' : 'border-slate-800'}`}>
                     <div className={`absolute -right-4 -top-4 w-20 h-20 blur-2xl rounded-full opacity-30 ${analysis.status === 'safe' ? 'bg-emerald-500' : analysis.status === 'danger' ? 'bg-rose-500' : 'bg-amber-500'}`}></div>
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">CO-PILOT</span>
@@ -244,23 +218,34 @@ const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading }: { weather: Weath
     );
 };
 
-// 4. Footer Telemetry
-const FooterTelemetry = ({ heading, altitude, locationName, accuracy }: any) => {
+// 4. Footer Telemetry & Calibration
+const FooterTelemetry = ({ heading, altitude, locationName, accuracy, isGpsHeading, onOpenCalibration }: any) => {
     const directions = ['K', 'KD', 'D', 'GD', 'G', 'GB', 'B', 'KB'];
     const compassDir = heading !== null ? directions[Math.round(heading / 45) % 8] : '--';
 
     return (
         <div className="w-full bg-[#0f1523] border-t border-slate-800 pt-4 pb-8 px-6 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-20 shrink-0">
             <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 border border-slate-700 shadow-inner">
-                        <Navigation size={18} style={{ transform: `rotate(${heading || 0}deg)` }} className="text-cyan-500" />
+                {/* Compass & Heading */}
+                <div className="flex items-center gap-3 active:scale-95 transition-transform cursor-pointer" onClick={onOpenCalibration}>
+                    <div 
+                        className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 border border-slate-700 shadow-inner relative"
+                    >
+                        {/* Source Indicator Dot */}
+                        <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-[#0f1523] ${isGpsHeading ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
+                        <Navigation size={18} style={{ transform: `rotate(${heading || 0}deg)` }} className={isGpsHeading ? "text-cyan-500" : "text-amber-400"} />
                     </div>
                     <div>
-                        <div className="text-xl font-black text-white leading-none">{compassDir}</div>
-                        <div className="text-[10px] text-slate-500 font-bold mt-0.5">{Math.round(heading || 0)}° PUSULA</div>
+                        <div className="text-xl font-black text-white leading-none flex items-center gap-2">
+                            {compassDir}
+                            <Settings size={14} className="text-slate-600" />
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-bold mt-0.5">
+                            {Math.round(heading || 0)}° {isGpsHeading ? 'GPS' : 'KALİBRE ET'}
+                        </div>
                     </div>
                 </div>
+
                 <div className="flex flex-col items-end">
                     <div className="flex items-center gap-1 text-slate-400">
                         <span className="text-2xl font-black text-white tabular-nums">{altitude ? Math.round(altitude) : 0}</span>
@@ -276,6 +261,53 @@ const FooterTelemetry = ({ heading, altitude, locationName, accuracy }: any) => 
         </div>
     );
 };
+
+// 5. Calibration Modal
+const CalibrationModal = ({ isOpen, onClose, offset, setOffset }: any) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-slate-900 border border-slate-700 w-full max-w-sm p-6 rounded-2xl shadow-2xl relative">
+                <div className="text-center mb-6">
+                    <RefreshCw className="w-12 h-12 text-amber-500 mx-auto mb-2 animate-spin-slow" />
+                    <h2 className="text-xl font-black text-white">Pusula Kalibrasyonu</h2>
+                    <p className="text-xs text-slate-400 mt-2">Telefonunuzun pusulası yanlış gösteriyorsa aşağıdaki çubuğu kaydırarak düzeltin.</p>
+                </div>
+                
+                <div className="mb-8">
+                    <div className="flex justify-between text-xs font-bold text-slate-500 mb-2">
+                        <span>SOLA (-90°)</span>
+                        <span className="text-white text-lg">{offset > 0 ? `+${offset}` : offset}°</span>
+                        <span>SAĞA (+90°)</span>
+                    </div>
+                    <input 
+                        type="range" 
+                        min="-90" 
+                        max="90" 
+                        value={offset} 
+                        onChange={(e) => setOffset(parseInt(e.target.value))}
+                        className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                    />
+                </div>
+
+                <div className="flex gap-3">
+                    <button 
+                        onClick={() => setOffset(0)}
+                        className="flex-1 py-3 bg-slate-800 text-slate-300 font-bold rounded-xl text-sm border border-slate-700 active:bg-slate-700"
+                    >
+                        Sıfırla
+                    </button>
+                    <button 
+                        onClick={onClose}
+                        className="flex-1 py-3 bg-cyan-600 text-white font-bold rounded-xl text-sm active:bg-cyan-700 shadow-[0_0_15px_rgba(8,145,178,0.4)]"
+                    >
+                        Kaydet
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 const DigitalClock = () => {
     const [time, setTime] = useState(new Date());
@@ -297,7 +329,16 @@ const App: React.FC = () => {
   const [gForce, setGForce] = useState(0);
   const [maxLeft, setMaxLeft] = useState(0);
   const [maxRight, setMaxRight] = useState(0);
-  const [heading, setHeading] = useState<number>(0); // Init with 0 to prevent NaN in math
+  
+  // Heading State
+  const [gpsHeading, setGpsHeading] = useState<number | null>(null);
+  const [deviceHeading, setDeviceHeading] = useState<number>(0);
+  const [compassOffset, setCompassOffset] = useState<number>(() => {
+      const saved = localStorage.getItem('compassOffset');
+      return saved ? parseInt(saved) : 0;
+  });
+  
+  // Altitude & GPS
   const [altitude, setAltitude] = useState<number | null>(0);
   const [accuracy, setAccuracy] = useState(0);
   
@@ -307,12 +348,18 @@ const App: React.FC = () => {
   const [analysis, setAnalysis] = useState<CoPilotAnalysis>(analyzeConditions(null));
   const [gpsStatus, setGpsStatus] = useState<'searching' | 'ok' | 'error'>('searching');
 
-  // PWA Install State
+  // UI State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showCalibration, setShowCalibration] = useState(false);
 
   // Wake Lock Ref
   const wakeLockRef = useRef<any>(null);
   const lastLocationUpdate = useRef<number>(0);
+
+  // Save Offset when changed
+  useEffect(() => {
+      localStorage.setItem('compassOffset', compassOffset.toString());
+  }, [compassOffset]);
 
   // --- PWA INSTALL PROMPT HANDLER ---
   useEffect(() => {
@@ -355,14 +402,27 @@ const App: React.FC = () => {
   // --- SENSORS SETUP ---
   useEffect(() => {
     const handleOrientation = (e: DeviceOrientationEvent) => {
-        let raw = e.gamma || 0;
-        if (raw > 90) raw = 90; if (raw < -90) raw = -90;
+        // Lean Angle (Gamma)
+        let rawLean = e.gamma || 0;
+        if (rawLean > 90) rawLean = 90; if (rawLean < -90) rawLean = -90;
         setLeanAngle(prev => {
-            const next = prev * 0.8 + raw * 0.2;
+            const next = prev * 0.8 + rawLean * 0.2; // Low pass filter
             if (next < maxLeft) setMaxLeft(next);
             if (next > maxRight) setMaxRight(next);
             return next;
         });
+
+        // Magnetic Heading (Alpha)
+        // Check for iOS 'webkitCompassHeading' or standard 'alpha'
+        let rawHeading = 0;
+        if ((e as any).webkitCompassHeading) {
+            rawHeading = (e as any).webkitCompassHeading;
+        } else if (e.alpha !== null) {
+            // Android alpha is counter-clockwise, needs inversion for map logic usually, 
+            // but standard compass is 360 - alpha.
+            rawHeading = 360 - e.alpha; 
+        }
+        setDeviceHeading(rawHeading);
     };
 
     const handleMotion = (e: DeviceMotionEvent) => {
@@ -399,7 +459,7 @@ const App: React.FC = () => {
                 const { speed: spd, heading: hdg, altitude: alt, accuracy: acc, latitude, longitude } = pos.coords;
                 const kmh = spd ? spd * 3.6 : 0;
                 setSpeed(kmh < 2 ? 0 : kmh);
-                setHeading(hdg || 0); // Default to 0
+                setGpsHeading(hdg); // can be null if stationary
                 setAltitude(alt);
                 setAccuracy(acc || 0);
 
@@ -435,15 +495,31 @@ const App: React.FC = () => {
       setMaxRight(0);
   };
 
+  // Determine which heading to use:
+  // If moving > 5kmh and GPS has heading, use GPS (most accurate).
+  // Otherwise use Device Compass + Offset.
+  const isGpsHeadingUsed = speed > 5 && gpsHeading !== null && !isNaN(gpsHeading);
+  let effectiveHeading = isGpsHeadingUsed ? (gpsHeading || 0) : (deviceHeading + compassOffset);
+  // Normalize to 0-360
+  effectiveHeading = ((effectiveHeading % 360) + 360) % 360;
+
   return (
     <div className="dash-bg w-full h-[100dvh] flex flex-col relative text-slate-100 overflow-hidden font-sans select-none">
         
+        {/* CALIBRATION MODAL */}
+        <CalibrationModal 
+            isOpen={showCalibration} 
+            onClose={() => setShowCalibration(false)}
+            offset={compassOffset}
+            setOffset={setCompassOffset}
+        />
+
         {/* TOP BAR */}
         <div className="flex justify-between items-center px-6 pt-6 pb-2 z-20 shrink-0">
              <div className="flex items-center gap-3">
                  <div className={`w-2.5 h-2.5 rounded-full ${gpsStatus === 'ok' ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500 animate-pulse'}`}></div>
                  
-                  {/* INSTALL BUTTON (Only shows if installable) */}
+                  {/* INSTALL BUTTON */}
                  {deferredPrompt && (
                      <button 
                         onClick={handleInstallClick}
@@ -468,7 +544,7 @@ const App: React.FC = () => {
              </div>
         </div>
 
-        {/* MAIN DISPLAY - Responsive Center - Using flex-1 to auto grow/shrink */}
+        {/* MAIN DISPLAY */}
         <div className="flex-1 flex flex-col justify-center items-center relative z-10 w-full min-h-0">
              <Speedometer speed={speed} />
              <LeanDashboard 
@@ -481,10 +557,17 @@ const App: React.FC = () => {
         </div>
 
         {/* INFO CLUSTER */}
-        <EnvGrid weather={weather} analysis={analysis} bikeSpeed={speed} bikeHeading={heading} />
+        <EnvGrid weather={weather} analysis={analysis} bikeSpeed={speed} bikeHeading={effectiveHeading} />
 
         {/* FOOTER */}
-        <FooterTelemetry heading={heading} altitude={altitude} locationName={locationName} accuracy={accuracy} />
+        <FooterTelemetry 
+            heading={effectiveHeading} 
+            altitude={altitude} 
+            locationName={locationName} 
+            accuracy={accuracy}
+            isGpsHeading={isGpsHeadingUsed}
+            onOpenCalibration={() => setShowCalibration(true)}
+        />
 
     </div>
   );
