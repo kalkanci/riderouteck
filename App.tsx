@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Navigation, Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Zap, Droplets, Gauge, Thermometer, TrendingUp, ShieldCheck, Mountain, Compass, Timer, Activity, Locate, RotateCcw, Crosshair, ChevronsRight, Split, Target, MoveUpRight, MoveDownRight, Minus, Music, Volume2, Pause, Play, Radio, AlertTriangle } from 'lucide-react';
+import { MapPin, Navigation, Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Zap, Droplets, Gauge, Thermometer, TrendingUp, ShieldCheck, Mountain, Compass, Timer, Activity, Locate, RotateCcw, Crosshair, ChevronsRight, Split, Target, MoveUpRight, MoveDownRight, Minus, Music, Volume2, Pause, Play, Radio, AlertTriangle, Key } from 'lucide-react';
 import { LocationData, WeatherData, RouteAlternative, ElevationStats, RadioStation } from './types';
-import { searchLocation, getRouteAlternatives, getWeatherForPoint, getElevationProfile, getRadioStations, IS_API_KEY_VALID } from './services/api';
+import { searchLocation, getRouteAlternatives, getWeatherForPoint, getElevationProfile, getRadioStations, hasApiKey, setManualApiKey } from './services/api';
 
 // --- UTILS ---
 const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -42,6 +42,51 @@ const sampleRoutePoints = (coords: [number, number][], intervalKm: number = 10) 
 };
 
 // --- COMPONENTS ---
+
+const ApiKeyModal = ({ onClose }: { onClose: () => void }) => {
+    const [key, setKey] = useState("");
+    
+    const handleSave = () => {
+        if(key.length > 10) {
+            setManualApiKey(key);
+            onClose();
+        } else {
+            alert("Lütfen geçerli bir Google Maps API Anahtarı giriniz.");
+        }
+    };
+
+    return (
+        <div className="absolute inset-0 z-[200] bg-black/80 backdrop-blur-md flex items-center justify-center p-6">
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+                <div className="flex flex-col items-center gap-4 text-center">
+                    <div className="w-12 h-12 bg-amber-500/20 text-amber-500 rounded-full flex items-center justify-center mb-2">
+                        <Key size={24} />
+                    </div>
+                    <h2 className="text-xl font-bold text-white">Google Maps API Anahtarı Gerekli</h2>
+                    <p className="text-sm text-slate-400">
+                        Uygulamanın çalışması için geçerli bir API anahtarı girilmelidir. Bu anahtar sadece tarayıcınızda saklanır.
+                    </p>
+                    <input 
+                        type="text" 
+                        value={key}
+                        onChange={(e) => setKey(e.target.value)}
+                        placeholder="AIzaSy..." 
+                        className="w-full bg-slate-800 border border-slate-600 rounded-xl p-3 text-white font-mono text-sm focus:border-cyan-500 outline-none"
+                    />
+                    <button 
+                        onClick={handleSave}
+                        className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all"
+                    >
+                        Anahtarı Kaydet ve Başla
+                    </button>
+                    <div className="text-[10px] text-slate-500 mt-2">
+                        Routes API, Places API ve Geocoding API aktif olmalıdır.
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const LiveMiniMap = ({ coordinates, color, userPos }: { coordinates: [number, number][], color: string, userPos: [number, number] | null }) => {
     if (!coordinates || coordinates.length < 2) return null;
@@ -310,12 +355,24 @@ const App: React.FC = () => {
   
   const [isLoading, setIsLoading] = useState(false);
   const [isRerouting, setIsRerouting] = useState(false);
+  
+  const [showKeyModal, setShowKeyModal] = useState(false);
 
   // Refs
   const watchIdRef = useRef<number | null>(null);
   const tripStartRef = useRef<number | null>(null);
   const timerRef = useRef<any>(null);
   const lastRerouteTime = useRef<number>(0);
+
+  // --- CHECK API KEY ON MOUNT ---
+  useEffect(() => {
+      // Small delay to let everything hydrate
+      setTimeout(() => {
+          if (!hasApiKey()) {
+              setShowKeyModal(true);
+          }
+      }, 1000);
+  }, []);
 
   // --- ANALYZE NEXT 5 KM ---
   const analyzeNext5Km = (currentLat: number, currentLng: number, coords: [number, number][], elevations: ElevationStats | null, radar: {dist: number, weather: WeatherData}[]) => {
@@ -497,8 +554,10 @@ const App: React.FC = () => {
           alert("Lütfen bir hedef seçin.");
           return;
       }
-      if (!IS_API_KEY_VALID) {
-          alert("Google Maps API Anahtarı eksik! Rota hesaplanamıyor.");
+      
+      // Dynamic Check
+      if (!hasApiKey()) {
+          setShowKeyModal(true);
           return;
       }
 
@@ -531,6 +590,9 @@ const App: React.FC = () => {
 
   return (
     <div className="dash-bg w-full h-[100dvh] flex flex-col relative text-slate-100 overflow-hidden font-sans">
+      
+      {showKeyModal && <ApiKeyModal onClose={() => setShowKeyModal(false)} />}
+
       <DashboardHeader 
         speed={currentSpeed} 
         altitude={altitude} 
@@ -542,10 +604,10 @@ const App: React.FC = () => {
         next5kmStats={next5kmStats}
       />
       
-      {!IS_API_KEY_VALID && (
-          <div className="bg-red-600/90 text-white text-xs font-bold text-center py-1 absolute top-0 w-full z-[100] flex items-center justify-center gap-2">
-              <AlertTriangle size={14} /> API ANAHTARI BULUNAMADI - HARİTALAR ÇALIŞMAZ
-          </div>
+      {!hasApiKey() && !showKeyModal && (
+          <button onClick={() => setShowKeyModal(true)} className="bg-red-600/90 hover:bg-red-500 text-white text-xs font-bold text-center py-1 absolute top-0 w-full z-[100] flex items-center justify-center gap-2 cursor-pointer transition-colors">
+              <AlertTriangle size={14} /> API ANAHTARI YOK - TIKLA VE GİR
+          </button>
       )}
 
       {isRerouting && (

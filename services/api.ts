@@ -1,10 +1,9 @@
 import { LocationData, WeatherData, RouteAlternative, ElevationStats, RadioStation, RouteStep } from "../types";
 
-// Extremely robust environment variable retrieval
+// --- API KEY MANAGEMENT ---
+// 1. Try to get key from environment (Vite/Process)
 const getEnv = (key: string): string => {
     let value = '';
-    
-    // 1. Try Vite standard (import.meta.env)
     try {
         // @ts-ignore
         if (import.meta && import.meta.env && import.meta.env[key]) {
@@ -13,7 +12,6 @@ const getEnv = (key: string): string => {
         }
     } catch (e) {}
 
-    // 2. Try Node/Process standard (process.env)
     if (!value) {
         try {
             if (typeof process !== 'undefined' && process.env && process.env[key]) {
@@ -21,15 +19,31 @@ const getEnv = (key: string): string => {
             }
         } catch (e) {}
     }
-
     return value || '';
 };
 
-const GOOGLE_API_KEY = getEnv('VITE_GOOGLE_MAPS_KEY');
-export const IS_API_KEY_VALID = !!GOOGLE_API_KEY;
+// Internal variable to store the key (starts with Env, can be updated manually)
+let CURRENT_GOOGLE_API_KEY = getEnv('VITE_GOOGLE_MAPS_KEY');
+
+// Load from LocalStorage if available (persistence for manual entry)
+try {
+    const stored = localStorage.getItem('MOTO_ROTA_API_KEY');
+    if (stored) CURRENT_GOOGLE_API_KEY = stored;
+} catch (e) {}
+
+// Export function to set key manually from UI
+export const setManualApiKey = (key: string) => {
+    CURRENT_GOOGLE_API_KEY = key;
+    try {
+        localStorage.setItem('MOTO_ROTA_API_KEY', key);
+    } catch (e) {}
+    // Force reload/re-check might be handled by UI state
+};
+
+// Helper to check validity
+export const hasApiKey = () => !!CURRENT_GOOGLE_API_KEY && CURRENT_GOOGLE_API_KEY.length > 10;
 
 // --- UTILS: Polyline Decoder ---
-// Decodes Google's encoded polyline algorithm into [lng, lat] array
 const decodePolyline = (encoded: string): [number, number][] => {
     const points: [number, number][] = [];
     let index = 0, len = encoded.length;
@@ -54,8 +68,6 @@ const decodePolyline = (encoded: string): [number, number][] => {
         } while (b >= 0x20);
         const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
         lng += dlng;
-
-        // GeoJSON expects [lng, lat], Google usually gives (lat, lng) logic
         points.push([lng * 1e-5, lat * 1e-5]);
     }
     return points;
@@ -78,10 +90,10 @@ export const getRadioStations = async (tag: string): Promise<RadioStation[]> => 
 
 // --- GOOGLE REVERSE GEOCODING ---
 export const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
-    if (!GOOGLE_API_KEY) return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    if (!CURRENT_GOOGLE_API_KEY) return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 
     try {
-        const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_API_KEY}&language=tr`);
+        const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${CURRENT_GOOGLE_API_KEY}&language=tr`);
         const data = await res.json();
         
         if (data.status === 'OK' && data.results?.[0]) {
@@ -107,7 +119,7 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<string> 
 export const searchLocation = async (query: string): Promise<LocationData[]> => {
   if (query.length < 3) return [];
   
-  if (!GOOGLE_API_KEY) {
+  if (!CURRENT_GOOGLE_API_KEY) {
       console.warn("Google API Key eksik. Arama yapılamıyor.");
       return [];
   }
@@ -117,7 +129,7 @@ export const searchLocation = async (query: string): Promise<LocationData[]> => 
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-Goog-Api-Key': GOOGLE_API_KEY,
+            'X-Goog-Api-Key': CURRENT_GOOGLE_API_KEY,
             'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.types'
         },
         body: JSON.stringify({
@@ -168,8 +180,8 @@ const mapGoogleManeuver = (maneuver: string): string => {
 };
 
 export const getRouteAlternatives = async (start: LocationData, end: LocationData): Promise<RouteAlternative[]> => {
-  if (!GOOGLE_API_KEY) {
-      throw new Error("API Anahtarı Eksik! Google Maps çalışmıyor.");
+  if (!CURRENT_GOOGLE_API_KEY) {
+      throw new Error("API Anahtarı Eksik! Lütfen ayarlardan anahtarı giriniz.");
   }
 
   const fetchRoute = async (mode: 'fastest' | 'toll_free' | 'scenic') => {
@@ -194,7 +206,7 @@ export const getRouteAlternatives = async (start: LocationData, end: LocationDat
           method: 'POST',
           headers: {
               'Content-Type': 'application/json',
-              'X-Goog-Api-Key': GOOGLE_API_KEY,
+              'X-Goog-Api-Key': CURRENT_GOOGLE_API_KEY,
               'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.description,routes.legs,routes.routeLabels'
           },
           body: JSON.stringify(body)
