@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download, Settings, RefreshCw } from 'lucide-react';
+import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download, Settings, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { WeatherData, CoPilotAnalysis } from './types';
 import { getWeatherForPoint, reverseGeocode } from './services/api';
 
 // --- MATH UTILS ---
 const toRad = (deg: number) => deg * Math.PI / 180;
 
-// Calculates the "Apparent Wind" (The wind the rider feels)
+// Calculates the "Apparent Wind"
 const calculateApparentWind = (
     bikeSpeedKmh: number, 
     bikeHeading: number, 
@@ -241,7 +241,7 @@ const FooterTelemetry = ({ heading, altitude, locationName, accuracy, isGpsHeadi
                             <Settings size={14} className="text-slate-600" />
                         </div>
                         <div className="text-[10px] text-slate-500 font-bold mt-0.5">
-                            {Math.round(heading || 0)}° {isGpsHeading ? 'GPS' : 'KALİBRE ET'}
+                            {Math.round(heading || 0)}° {isGpsHeading ? 'GPS' : 'MANYETİK'}
                         </div>
                     </div>
                 </div>
@@ -262,46 +262,45 @@ const FooterTelemetry = ({ heading, altitude, locationName, accuracy, isGpsHeadi
     );
 };
 
-// 5. Calibration Modal
-const CalibrationModal = ({ isOpen, onClose, offset, setOffset }: any) => {
+// 5. AUTO Calibration Modal (Replaced manual slider)
+const CalibrationModal = ({ isOpen, onClose, offset }: any) => {
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="bg-slate-900 border border-slate-700 w-full max-w-sm p-6 rounded-2xl shadow-2xl relative">
                 <div className="text-center mb-6">
-                    <RefreshCw className="w-12 h-12 text-amber-500 mx-auto mb-2 animate-spin-slow" />
-                    <h2 className="text-xl font-black text-white">Pusula Kalibrasyonu</h2>
-                    <p className="text-xs text-slate-400 mt-2">Telefonunuzun pusulası yanlış gösteriyorsa aşağıdaki çubuğu kaydırarak düzeltin.</p>
+                    <RefreshCw className="w-12 h-12 text-cyan-500 mx-auto mb-2 animate-spin-slow" />
+                    <h2 className="text-xl font-black text-white">Akıllı Kalibrasyon</h2>
                 </div>
                 
-                <div className="mb-8">
-                    <div className="flex justify-between text-xs font-bold text-slate-500 mb-2">
-                        <span>SOLA (-90°)</span>
-                        <span className="text-white text-lg">{offset > 0 ? `+${offset}` : offset}°</span>
-                        <span>SAĞA (+90°)</span>
+                <div className="space-y-4 text-sm text-slate-300">
+                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+                        <div className="flex items-center gap-2 mb-2 text-cyan-400 font-bold">
+                            <Activity size={16} />
+                            <span>Nasıl Çalışır?</span>
+                        </div>
+                        <p className="text-xs leading-relaxed opacity-80">
+                            Uygulama, sürüş sırasında (20 km/s üzeri) GPS uydusundan alınan kesin yönü, telefonunun pusulası ile karşılaştırır. Aradaki farkı öğrenir ve durduğunda otomatik olarak uygular.
+                        </p>
                     </div>
-                    <input 
-                        type="range" 
-                        min="-90" 
-                        max="90" 
-                        value={offset} 
-                        onChange={(e) => setOffset(parseInt(e.target.value))}
-                        className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                    />
+
+                    <div className="flex items-center justify-between bg-slate-800 p-3 rounded-lg border border-slate-700">
+                         <span className="text-xs font-bold text-slate-500">MEVCUT SAPMA</span>
+                         <span className="text-xl font-black text-white">{offset}°</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 text-xs text-amber-500 bg-amber-900/10 p-3 rounded-lg border border-amber-900/30">
+                        <AlertTriangle size={16} className="shrink-0" />
+                        <span>Kalibre etmek için düz bir yolda 20 km/s üzerine çıkman yeterli.</span>
+                    </div>
                 </div>
 
-                <div className="flex gap-3">
-                    <button 
-                        onClick={() => setOffset(0)}
-                        className="flex-1 py-3 bg-slate-800 text-slate-300 font-bold rounded-xl text-sm border border-slate-700 active:bg-slate-700"
-                    >
-                        Sıfırla
-                    </button>
+                <div className="mt-6">
                     <button 
                         onClick={onClose}
-                        className="flex-1 py-3 bg-cyan-600 text-white font-bold rounded-xl text-sm active:bg-cyan-700 shadow-[0_0_15px_rgba(8,145,178,0.4)]"
+                        className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl text-sm active:bg-cyan-700 shadow-[0_0_15px_rgba(8,145,178,0.4)]"
                     >
-                        Kaydet
+                        Tamam
                     </button>
                 </div>
             </div>
@@ -356,10 +355,32 @@ const App: React.FC = () => {
   const wakeLockRef = useRef<any>(null);
   const lastLocationUpdate = useRef<number>(0);
 
-  // Save Offset when changed
+  // --- AUTO CALIBRATION LOGIC ---
   useEffect(() => {
-      localStorage.setItem('compassOffset', compassOffset.toString());
-  }, [compassOffset]);
+      // If we are moving fast enough (e.g. > 20 kmh) and have a valid GPS heading
+      // we can assume GPS heading is TRUE NORTH.
+      // We calculate the diff between GPS Heading and Magnetic Heading (deviceHeading)
+      // and update the offset.
+      if (speed > 20 && gpsHeading !== null && !isNaN(gpsHeading) && accuracy < 20) {
+          // Normalize both to 0-360
+          let diff = gpsHeading - deviceHeading;
+          
+          // Handle wrap around (e.g. GPS 5, Magnetic 355 -> Diff -350 -> Should be +10)
+          while (diff < -180) diff += 360;
+          while (diff > 180) diff -= 360;
+          
+          // Apply a smoothing factor or simple replacement? 
+          // For simplicity in React loop, let's just update it.
+          // Since this runs often, we might want to dampen it, but direct assignment is fastest fix.
+          const roundedDiff = Math.round(diff);
+          
+          // Only update if it changed significantly to avoid render thrashing
+          if (Math.abs(roundedDiff - compassOffset) > 1) {
+              setCompassOffset(roundedDiff);
+              localStorage.setItem('compassOffset', roundedDiff.toString());
+          }
+      }
+  }, [speed, gpsHeading, deviceHeading, accuracy, compassOffset]);
 
   // --- PWA INSTALL PROMPT HANDLER ---
   useEffect(() => {
@@ -413,13 +434,10 @@ const App: React.FC = () => {
         });
 
         // Magnetic Heading (Alpha)
-        // Check for iOS 'webkitCompassHeading' or standard 'alpha'
         let rawHeading = 0;
         if ((e as any).webkitCompassHeading) {
             rawHeading = (e as any).webkitCompassHeading;
         } else if (e.alpha !== null) {
-            // Android alpha is counter-clockwise, needs inversion for map logic usually, 
-            // but standard compass is 360 - alpha.
             rawHeading = 360 - e.alpha; 
         }
         setDeviceHeading(rawHeading);
@@ -459,7 +477,7 @@ const App: React.FC = () => {
                 const { speed: spd, heading: hdg, altitude: alt, accuracy: acc, latitude, longitude } = pos.coords;
                 const kmh = spd ? spd * 3.6 : 0;
                 setSpeed(kmh < 2 ? 0 : kmh);
-                setGpsHeading(hdg); // can be null if stationary
+                setGpsHeading(hdg); 
                 setAltitude(alt);
                 setAccuracy(acc || 0);
 
@@ -499,9 +517,12 @@ const App: React.FC = () => {
   // If moving > 5kmh and GPS has heading, use GPS (most accurate).
   // Otherwise use Device Compass + Offset.
   const isGpsHeadingUsed = speed > 5 && gpsHeading !== null && !isNaN(gpsHeading);
-  let effectiveHeading = isGpsHeadingUsed ? (gpsHeading || 0) : (deviceHeading + compassOffset);
-  // Normalize to 0-360
-  effectiveHeading = ((effectiveHeading % 360) + 360) % 360;
+  
+  // Calculated Magnetic Heading (with Auto Calibration Offset applied)
+  const calibratedMagneticHeading = (deviceHeading + compassOffset + 360) % 360;
+
+  // Effective Heading for Display
+  const effectiveHeading = isGpsHeadingUsed ? (gpsHeading || 0) : calibratedMagneticHeading;
 
   return (
     <div className="dash-bg w-full h-[100dvh] flex flex-col relative text-slate-100 overflow-hidden font-sans select-none">
@@ -511,7 +532,6 @@ const App: React.FC = () => {
             isOpen={showCalibration} 
             onClose={() => setShowCalibration(false)}
             offset={compassOffset}
-            setOffset={setCompassOffset}
         />
 
         {/* TOP BAR */}
