@@ -300,25 +300,14 @@ const LeanDashboard = ({ angle, maxLeft, maxRight, gForce, onReset, isDark, onEx
 };
 
 const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, isDark, onExpand }: any) => {
-    const rainWarning = weather && (weather.rainProb > 20 || weather.rain > 0.1);
+    // Removed internal RainWarning from here to move it to top
     const apparentWind = weather ? calculateApparentWind(bikeSpeed, bikeHeading, weather.windSpeed, weather.windDirection) : 0;
     
     const cardClass = isDark ? "bg-[#111827] border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900 shadow-md";
     const labelClass = isDark ? "text-slate-500" : "text-slate-500 font-semibold";
     
     return (
-        <div className="flex flex-col px-4 w-full mb-6 mt-auto gap-4">
-            
-            {rainWarning && (
-                <div className="w-full bg-cyan-900/40 border border-cyan-500/50 rounded-xl p-3 flex items-center justify-center gap-3 animate-pulse shadow-[0_0_20px_rgba(6,182,212,0.3)]">
-                    <Umbrella className="text-cyan-400 animate-bounce" size={24} />
-                    <div className="text-center">
-                        <div className="text-cyan-300 font-black tracking-widest text-lg leading-none">YAĞMUR BEKLENİYOR</div>
-                        <div className="text-cyan-200/70 text-[10px] font-bold">EN YAKIN İSTASYONDA %{weather?.rainProb} İHTİMAL</div>
-                    </div>
-                </div>
-            )}
-
+        <div className="flex flex-col px-4 w-full mb-6 mt-auto gap-4 pb-8"> {/* Added pb-8 for safe area since footer is gone */}
             <div className="grid grid-cols-2 gap-4">
                 {/* WEATHER CARD */}
                 <div onClick={() => onExpand('weather')} className={`${cardClass} border rounded-2xl p-4 flex flex-col relative overflow-hidden h-32 active:scale-95 transition-transform cursor-pointer`}>
@@ -347,50 +336,6 @@ const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, isDark, onExpand }
                         <Shield size={40} />
                     </div>
                 </div>
-            </div>
-        </div>
-    );
-};
-
-const FooterTelemetry = ({ heading, altitude, locationName, accuracy, isGpsHeading, onOpenCalibration, isDark, theme }: any) => {
-    const directions = ['K', 'KD', 'D', 'GD', 'G', 'GB', 'B', 'KB'];
-    const compassDir = heading !== null ? directions[Math.round(heading / 45) % 8] : '--';
-    
-    const bgClass = isDark ? "bg-[#0f1523] border-slate-800" : "bg-white border-slate-200 shadow-[0_-5px_30px_rgba(0,0,0,0.1)]";
-    const textMain = isDark ? "text-white" : "text-slate-900";
-
-    return (
-        <div className={`w-full border-t pt-5 pb-8 px-6 rounded-t-3xl z-20 shrink-0 ${bgClass}`}>
-            <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3 active:scale-95 transition-transform cursor-pointer" onClick={onOpenCalibration}>
-                    <div 
-                        className={`w-10 h-10 rounded-full flex items-center justify-center border shadow-inner relative ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'}`}
-                    >
-                        <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${isGpsHeading ? 'bg-emerald-500' : 'bg-amber-500'} ${isDark ? 'border-[#0f1523]' : 'border-white'}`}></div>
-                        <Navigation size={18} style={{ transform: `rotate(${heading || 0}deg)` }} className={isGpsHeading ? "text-cyan-500" : "text-amber-500"} />
-                    </div>
-                    <div>
-                        <div className={`text-xl font-black leading-none flex items-center gap-2 ${textMain}`}>
-                            {compassDir}
-                            <Settings size={14} className="opacity-50" />
-                        </div>
-                        <div className="text-[10px] font-bold mt-0.5 opacity-60">
-                            {Math.round(heading || 0)}° {isGpsHeading ? 'GPS' : 'MANYETİK'}
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex flex-col items-end">
-                    <div className="flex items-center gap-1 opacity-60">
-                        <span className={`text-2xl font-black tabular-nums ${textMain}`}>{altitude ? Math.round(altitude) : 0}</span>
-                        <span className="text-[10px] font-bold mt-1.5">METRE</span>
-                    </div>
-                    <div className="text-[9px] font-bold opacity-50">GPS ±{Math.round(accuracy)}m</div>
-                </div>
-            </div>
-            <div className={`flex items-center gap-2 p-2 rounded-lg border ${isDark ? 'bg-slate-800/30 border-slate-800' : 'bg-slate-50 border-slate-100'}`}>
-                <MapPin size={12} className="text-cyan-500 shrink-0" />
-                <span className={`text-xs font-bold truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{locationName || "Konum Bekleniyor..."}</span>
             </div>
         </div>
     );
@@ -706,6 +651,8 @@ const App: React.FC = () => {
       maxCornerG
   };
 
+  const showRainWarning = weather && (weather.rainProb > 20 || weather.rain > 0.1);
+
   return (
     <div className={`${mainBg} w-full h-[100dvh] flex flex-col relative overflow-hidden font-sans select-none transition-colors duration-300`}>
         
@@ -723,7 +670,7 @@ const App: React.FC = () => {
 
         {/* TOP BAR */}
         <div className="flex justify-between items-center px-6 pt-6 pb-2 z-20 shrink-0">
-             <div className="flex items-center gap-3">
+             <div className="flex items-center gap-3 active:scale-95 transition-transform" onClick={() => setShowCalibration(true)}>
                  <div className={`w-2.5 h-2.5 rounded-full ${gpsStatus === 'ok' ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500 animate-pulse'}`}></div>
                  
                  {deferredPrompt && (
@@ -733,14 +680,26 @@ const App: React.FC = () => {
                  )}
                  {!deferredPrompt && (
                      <div className="flex flex-col">
-                         <span className="text-[10px] font-black tracking-widest opacity-50 text-slate-500">UYDU</span>
-                         <span className={`text-[10px] font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{gpsStatus === 'ok' ? 'BAĞLI' : 'ARANIYOR'}</span>
+                         <div className="flex items-center gap-1">
+                             <Navigation size={12} className={isDark ? 'text-slate-400' : 'text-slate-600'} style={{ transform: `rotate(${effectiveHeading || 0}deg)` }} />
+                             <span className={`text-xs font-bold truncate max-w-[120px] ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{locationName || "Konum Aranıyor..."}</span>
+                         </div>
                      </div>
                  )}
              </div>
              
              <DigitalClock isDark={isDark} toggleTheme={toggleTheme} batteryLevel={batteryLevel} />
         </div>
+
+        {/* Floating Rain Warning */}
+        {showRainWarning && (
+            <div className="w-full px-6 mt-2 mb-0 z-30">
+                <div className="w-full bg-cyan-900/60 backdrop-blur-md border border-cyan-500/50 rounded-full py-2 px-4 flex items-center justify-center gap-3 animate-pulse shadow-[0_0_20px_rgba(6,182,212,0.3)]">
+                    <Umbrella className="text-cyan-400" size={16} />
+                    <span className="text-cyan-200 text-xs font-bold tracking-widest">YAĞIŞ BEKLENİYOR (%{weather?.rainProb})</span>
+                </div>
+            </div>
+        )}
 
         {/* MAIN DISPLAY */}
         <div className="flex-1 flex flex-col justify-center items-center relative z-10 w-full min-h-0">
@@ -764,18 +723,6 @@ const App: React.FC = () => {
             bikeHeading={effectiveHeading} 
             isDark={isDark}
             onExpand={(type: string) => setExpandedView(type)}
-        />
-
-        {/* FOOTER */}
-        <FooterTelemetry 
-            heading={effectiveHeading} 
-            altitude={altitude} 
-            locationName={locationName} 
-            accuracy={accuracy}
-            isGpsHeading={isGpsHeadingUsed}
-            onOpenCalibration={() => setShowCalibration(true)}
-            isDark={isDark}
-            theme={theme}
         />
 
     </div>
