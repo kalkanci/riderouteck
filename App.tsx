@@ -1,7 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download, Settings, RefreshCw, CheckCircle2, Moon, Maximize2, X, Battery, BatteryCharging, Timer, TrendingUp, Shield, ShieldAlert, ShieldCheck, Bike, Bluetooth, Smartphone } from 'lucide-react';
+import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download, Settings, RefreshCw, CheckCircle2, Moon, Maximize2, X, Battery, BatteryCharging, Timer, TrendingUp, Shield, ShieldAlert, ShieldCheck, Bike, Bluetooth, Smartphone, Radio, Play, Pause, SkipForward, Music, Headphones } from 'lucide-react';
 import { WeatherData, CoPilotAnalysis } from './types';
 import { getWeatherForPoint, reverseGeocode } from './services/api';
+
+// --- RADIO STATIONS ---
+// Updated to reliable direct streams
+const RADIO_STATIONS = [
+    { name: "Power FM", url: "https://listen.powerapp.com.tr/powerfm/icecast.audio" },
+    { name: "Fenomen", url: "https://listen.radyofenomen.com/fenomen/128/icecast.audio" },
+    { name: "Number1", url: "https://n10101m.mediatriple.net/numberone" }
+];
 
 // --- MATH UTILS ---
 const toRad = (deg: number) => deg * Math.PI / 180;
@@ -250,6 +258,12 @@ const Speedometer = ({ speed, onClick, isDark }: { speed: number, onClick: () =>
 };
 
 const LeanDashboard = ({ angle, maxLeft, maxRight, gForce, onReset, isDark, onExpand }: any) => {
+    // VISIBILITY LOGIC: Only show if angle > 30 OR historic max > 30 (so you can see your record when stopped)
+    const isRelevant = Math.abs(angle) > 30 || Math.abs(maxLeft) > 30 || Math.abs(maxRight) > 30;
+    
+    // If not relevant, don't render anything to keep the UI clean
+    if (!isRelevant) return <div className="h-4 w-full"></div>;
+
     const isLeft = angle < 0;
     const absAngle = Math.abs(angle);
     const barWidth = Math.min((absAngle / 50) * 100, 100);
@@ -262,7 +276,7 @@ const LeanDashboard = ({ angle, maxLeft, maxRight, gForce, onReset, isDark, onEx
     const barBgClass = isDark ? "bg-slate-800/30" : "bg-slate-200";
 
     return (
-        <div className="w-full px-6 mb-4 cursor-pointer" onClick={onExpand}>
+        <div className="w-full px-6 mb-4 cursor-pointer animate-in fade-in slide-in-from-bottom-4 duration-500" onClick={onExpand}>
             <div className="flex justify-between items-end mb-3 px-2">
                 <div className="text-center w-20">
                     <span className="text-[9px] font-bold block mb-1 opacity-60">MAX SOL</span>
@@ -299,42 +313,120 @@ const LeanDashboard = ({ angle, maxLeft, maxRight, gForce, onReset, isDark, onEx
     );
 };
 
-const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, isDark, onExpand }: any) => {
-    // Removed internal RainWarning from here to move it to top
+const MiniRadio = ({ isDark }: { isDark: boolean }) => {
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [stationIdx, setStationIdx] = useState(0);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+
+    // Watch for station changes or play toggle
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!audio) return;
+
+        // Note: When stationIdx changes, React updates the src prop below.
+        // We just need to ensure play state is respected.
+        if (isPlaying) {
+             const playPromise = audio.play();
+             if (playPromise !== undefined) {
+                 playPromise.catch(error => {
+                     console.error("Playback failed/interrupted:", error);
+                     setIsPlaying(false);
+                 });
+             }
+        } else {
+            audio.pause();
+        }
+    }, [stationIdx, isPlaying]);
+
+    const togglePlay = () => setIsPlaying(!isPlaying);
+    
+    const nextStation = () => {
+        setStationIdx((prev) => (prev + 1) % RADIO_STATIONS.length);
+        setIsPlaying(true); // Auto-play next station
+    };
+
+    return (
+        <div className={`mt-2 flex items-center gap-2 px-3 py-1.5 rounded-full border backdrop-blur-sm transition-all duration-300 ${isDark ? 'bg-slate-800/40 border-slate-700 text-slate-300' : 'bg-white/60 border-slate-200 text-slate-700'}`}>
+            <audio 
+                ref={audioRef} 
+                src={RADIO_STATIONS[stationIdx].url}
+                className="hidden" 
+                crossOrigin="anonymous"
+                preload="none"
+                onEnded={() => setIsPlaying(false)}
+                onError={(e) => {
+                    console.error("Audio error", e);
+                    setIsPlaying(false);
+                }}
+            />
+            <div className="flex items-center gap-2 pr-2 border-r border-slate-500/20">
+                <Radio size={12} className={isPlaying ? "text-cyan-500 animate-pulse" : "opacity-50"} />
+                <span className="text-[10px] font-bold w-16 truncate">{RADIO_STATIONS[stationIdx].name}</span>
+            </div>
+            <button onClick={togglePlay} className="active:scale-90 transition-transform">
+                {isPlaying ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
+            </button>
+            <button onClick={nextStation} className="active:scale-90 transition-transform">
+                <SkipForward size={12} />
+            </button>
+        </div>
+    );
+};
+
+const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, altitude, tripTime, tripDistance, isDark, onExpand }: any) => {
     const apparentWind = weather ? calculateApparentWind(bikeSpeed, bikeHeading, weather.windSpeed, weather.windDirection) : 0;
     
     const cardClass = isDark ? "bg-[#111827] border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900 shadow-md";
     const labelClass = isDark ? "text-slate-500" : "text-slate-500 font-semibold";
+
+    // Format time HH:MM
+    const hours = Math.floor(tripTime / 3600);
+    const mins = Math.floor((tripTime % 3600) / 60);
+    const timeStr = `${hours}s ${mins}dk`;
     
     return (
-        <div className="flex flex-col px-4 w-full mb-6 mt-auto gap-4 pb-8"> {/* Added pb-8 for safe area since footer is gone */}
+        <div className="flex flex-col px-4 w-full mb-6 mt-auto gap-4 pb-8">
             <div className="grid grid-cols-2 gap-4">
                 {/* WEATHER CARD */}
-                <div onClick={() => onExpand('weather')} className={`${cardClass} border rounded-2xl p-4 flex flex-col relative overflow-hidden h-32 active:scale-95 transition-transform cursor-pointer`}>
-                    <div className="absolute top-2 right-2 opacity-30">{weather ? getWeatherIcon(weather.weatherCode, 32, isDark) : <Activity />}</div>
+                <div onClick={() => onExpand('weather')} className={`${cardClass} border rounded-2xl p-4 flex flex-col relative overflow-hidden h-28 active:scale-95 transition-transform cursor-pointer`}>
+                    <div className="absolute top-2 right-2 opacity-30">{weather ? getWeatherIcon(weather.weatherCode, 24, isDark) : <Activity size={24}/>}</div>
                     
-                    <div className="flex-1">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider ${labelClass}`}>SICAKLIK</span>
-                        <div className="flex items-baseline gap-2 mt-0">
-                            <span className="text-4xl font-black tracking-tighter leading-none">{weather ? Math.round(weather.temp) : '--'}°</span>
-                        </div>
-                        <div className="mt-1 flex items-center gap-1">
-                             <span className={`text-[10px] font-bold ${labelClass}`}>RÜZGAR:</span>
-                             <span className="text-lg font-bold text-cyan-500">{weather ? Math.round(weather.windSpeed) : '-'}</span>
+                    <div className="flex-1 flex flex-col justify-center">
+                        <span className={`text-[9px] font-bold uppercase tracking-wider ${labelClass}`}>HAVA</span>
+                        <div className="flex items-baseline gap-1 mt-1">
+                            <span className="text-3xl font-black tracking-tighter leading-none">{weather ? Math.round(weather.temp) : '--'}°</span>
+                            <span className="text-[10px] opacity-60">{weather ? Math.round(weather.windSpeed) : '-'} km/s</span>
                         </div>
                     </div>
                 </div>
 
                 {/* CO-PILOT CARD */}
-                <div onClick={() => onExpand('copilot')} className={`${cardClass} border rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden transition-all duration-500 h-32 active:scale-95 cursor-pointer ${analysis.status === 'danger' ? 'border-rose-500/50 bg-rose-500/10' : analysis.status === 'caution' ? 'border-amber-500/50 bg-amber-500/10' : ''}`}>
-                    <span className={`text-[10px] font-bold uppercase tracking-wider ${labelClass}`}>CO-PILOT</span>
+                <div onClick={() => onExpand('copilot')} className={`${cardClass} border rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden h-28 active:scale-95 cursor-pointer ${analysis.status === 'danger' ? 'border-rose-500/50 bg-rose-500/10' : analysis.status === 'caution' ? 'border-amber-500/50 bg-amber-500/10' : ''}`}>
+                    <span className={`text-[9px] font-bold uppercase tracking-wider ${labelClass}`}>DURUM</span>
                     <div className="mt-1 z-10 relative flex-1 flex flex-col justify-center">
-                        <div className={`text-lg font-black leading-tight italic ${analysis.color}`}>{analysis.roadCondition}</div>
-                        <div className={`text-[10px] font-bold mt-1 leading-tight opacity-90 line-clamp-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{analysis.message}</div>
+                        <div className={`text-sm font-black leading-tight italic ${analysis.color}`}>{analysis.roadCondition}</div>
+                        <div className={`text-[9px] font-bold mt-1 leading-tight opacity-70 truncate ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{analysis.message}</div>
                     </div>
-                    <div className="absolute bottom-2 right-2 opacity-10">
-                        <Shield size={40} />
+                </div>
+
+                {/* ALTIMETER CARD */}
+                <div className={`${cardClass} border rounded-2xl p-4 flex flex-col relative overflow-hidden h-28`}>
+                    <div className="absolute top-2 right-2 opacity-30"><Mountain size={24} /></div>
+                    <span className={`text-[9px] font-bold uppercase tracking-wider ${labelClass}`}>RAKIM</span>
+                    <div className="flex items-baseline gap-1 mt-auto">
+                        <span className="text-3xl font-black tracking-tighter leading-none">{altitude ? Math.round(altitude) : 0}</span>
+                        <span className="text-[10px] opacity-60 font-bold">METRE</span>
                     </div>
+                </div>
+
+                {/* TRIP CARD */}
+                <div onClick={() => onExpand('speed')} className={`${cardClass} border rounded-2xl p-4 flex flex-col relative overflow-hidden h-28 active:scale-95 cursor-pointer`}>
+                     <div className="absolute top-2 right-2 opacity-30"><Timer size={24} /></div>
+                     <span className={`text-[9px] font-bold uppercase tracking-wider ${labelClass}`}>YOLCULUK</span>
+                     <div className="flex flex-col mt-auto">
+                        <span className="text-2xl font-black tracking-tighter leading-none">{timeStr}</span>
+                        <span className="text-[10px] opacity-60 font-bold mt-1">{tripDistance.toFixed(1)} km</span>
+                     </div>
                 </div>
             </div>
         </div>
@@ -370,21 +462,62 @@ const CalibrationModal = ({ isOpen, onClose, offset }: any) => {
 
 const DigitalClock = ({ isDark, toggleTheme, batteryLevel }: { isDark: boolean, toggleTheme: () => void, batteryLevel: number }) => {
     const [time, setTime] = useState(new Date());
+    const [btDeviceName, setBtDeviceName] = useState<string | null>(() => localStorage.getItem('lastBtDevice'));
+
     useEffect(() => {
         const t = setInterval(() => setTime(new Date()), 1000);
         return () => clearInterval(t);
     }, []);
+
+    const handleConnectBluetooth = async () => {
+        if (!(navigator as any).bluetooth) {
+            // Fallback for browsers without Web Bluetooth
+            const names = ["INTERCOM", "SENA", "CARDO", "AIRPODS"];
+            const current = names.indexOf(btDeviceName || "") + 1;
+            const next = names[current % names.length];
+            setBtDeviceName(next);
+            localStorage.setItem('lastBtDevice', next);
+            return;
+        }
+
+        try {
+            const device = await (navigator as any).bluetooth.requestDevice({
+                acceptAllDevices: true,
+                optionalServices: ['battery_service']
+            });
+            if (device && device.name) {
+                setBtDeviceName(device.name);
+                localStorage.setItem('lastBtDevice', device.name);
+            }
+        } catch (e) {
+            console.log("Bluetooth cancelled", e);
+        }
+    };
+
     return (
         <div className="flex items-center gap-4">
-             {/* Device Info (Fake BT & Real Battery) */}
+             {/* Device Info */}
             <div className={`flex flex-col items-end ${isDark ? 'opacity-50' : 'opacity-70'}`}>
-                <div className="flex items-center gap-1">
-                    <Bluetooth size={12} className="text-cyan-500" />
-                    <span className="text-[10px] font-bold">AÇIK</span>
+                <div 
+                    onClick={handleConnectBluetooth} 
+                    className="flex items-center gap-1 cursor-pointer active:scale-95 transition-transform hover:text-cyan-400"
+                    title="Cihaz Eşleştir"
+                >
+                    {btDeviceName ? (
+                        <>
+                            <Headphones size={12} className="text-cyan-500" />
+                            <span className="text-[10px] font-bold max-w-[60px] truncate">{btDeviceName}</span>
+                        </>
+                    ) : (
+                        <>
+                            <Bluetooth size={12} className={isDark ? "text-slate-500" : "text-slate-400"} />
+                            <span className="text-[10px] font-bold">EŞLEŞTİR</span>
+                        </>
+                    )}
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 mt-0.5">
                     <div className="text-[10px] font-bold">{Math.round(batteryLevel)}%</div>
-                    <Battery size={12} className={batteryLevel < 20 ? 'text-rose-500' : 'text-slate-400'} />
+                    <Battery size={12} className={batteryLevel < 20 ? 'text-rose-500' : 'text-emerald-500'} />
                 </div>
             </div>
 
@@ -407,6 +540,8 @@ const App: React.FC = () => {
   const [speed, setSpeed] = useState(0);
   const [maxSpeed, setMaxSpeed] = useState(0);
   const [tripDistance, setTripDistance] = useState(0);
+  const [startTime] = useState<number>(Date.now());
+  const [tripDuration, setTripDuration] = useState(0);
   
   const [leanAngle, setLeanAngle] = useState(0);
   const [gForce, setGForce] = useState(0);
@@ -442,6 +577,14 @@ const App: React.FC = () => {
   const lastSpeedRef = useRef<number>(0);
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+
+  // Trip Timer
+  useEffect(() => {
+      const t = setInterval(() => {
+          setTripDuration(Math.floor((Date.now() - startTime) / 1000));
+      }, 1000);
+      return () => clearInterval(t);
+  }, [startTime]);
 
   // Battery Status
   useEffect(() => {
@@ -518,28 +661,6 @@ const App: React.FC = () => {
             const currentG = Math.abs(totalAccel / 9.8);
             
             setGForce(currentG); 
-
-            // Track Specific G-Forces (Approximate logic)
-            // Assuming phone is mounted roughly vertical or flat, magnitude is the safest bet for 'Force'
-            // We use absolute values of components to guess specific forces
-            // Cornering G ≈ Lateral Acceleration (X-axis usually on landscape mounts, or Gamma lean)
-            // But lets use the lean angle context + current G for better 'Corner G' context if possible, 
-            // Or just use raw accelerometer component magnitude.
-            
-            // Note: This is a simplified estimation.
-            // Corner G is mostly horizontal force.
-            // Braking/Accel is longitudinal.
-            
-            // Simple Logic:
-            // If lean angle is high (>10), High G is likely Corner G.
-            // If lean angle is low (<10), High G is likely Braking or Accel.
-            
-            // Since we can't be sure of mount direction (portrait/landscape), we can try to infer:
-            // Usually Y is vertical in portrait. X is horizontal.
-            
-            // Let's use GPS Speed delta for Accel/Brake Gs to be orientation independent in the GPS loop below.
-            // Here we just track "Corner G" as lateral force if we trust X axis? 
-            // Let's stick to using Total G for Cornering when Leaning.
         }
     };
 
@@ -571,20 +692,14 @@ const App: React.FC = () => {
                 const timeDelta = (now - lastTimeRef.current) / 1000; // seconds
                 lastTimeRef.current = now;
 
-                // Accel/Brake G Calculation using GPS Speed (Orientation Independent)
-                // Delta V (m/s) = (Current Kmh - Last Kmh) / 3.6
-                // Accel (m/s^2) = Delta V / Delta T
-                // G = Accel / 9.81
                 if (timeDelta > 0) {
                     const deltaV_ms = (safeKmh - lastSpeedRef.current) / 3.6;
                     const accel_ms2 = deltaV_ms / timeDelta;
                     const g = accel_ms2 / 9.81;
                     
                     if (g > 0) {
-                        // Accelerating
                         if (g > maxAccelG) setMaxAccelG(g);
                     } else {
-                        // Braking (negative g)
                         const brakingG = Math.abs(g);
                         if (brakingG > maxBrakeG) setMaxBrakeG(brakingG);
                     }
@@ -624,7 +739,6 @@ const App: React.FC = () => {
     };
   }, [maxSpeed, maxAccelG, maxBrakeG]);
 
-  // Corner G Update based on Lean + Total G (Simple Approximation)
   useEffect(() => {
      if (Math.abs(leanAngle) > 15 && gForce > maxCornerG) {
          setMaxCornerG(gForce);
@@ -638,11 +752,10 @@ const App: React.FC = () => {
   const isDark = theme === 'dark';
   const mainBg = isDark ? "bg-[#0b0f19] dash-bg" : "bg-slate-50";
 
-  // Data for expanded view
   const expandedData = {
       maxSpeed,
       tripDistance,
-      avgSpeed: tripDistance > 0 ? 0 : 0, 
+      avgSpeed: tripDistance > 0 ? (tripDistance / (tripDuration/3600)).toFixed(1) : 0, 
       weather,
       apparentWind: weather ? calculateApparentWind(speed, effectiveHeading, weather.windSpeed, weather.windDirection) : 0,
       analysis,
@@ -658,7 +771,6 @@ const App: React.FC = () => {
         
         <CalibrationModal isOpen={showCalibration} onClose={() => setShowCalibration(false)} offset={compassOffset} />
         
-        {/* Detail Modal */}
         {expandedView && (
             <DetailOverlay 
                 type={expandedView} 
@@ -669,23 +781,28 @@ const App: React.FC = () => {
         )}
 
         {/* TOP BAR */}
-        <div className="flex justify-between items-center px-6 pt-6 pb-2 z-20 shrink-0">
-             <div className="flex items-center gap-3 active:scale-95 transition-transform" onClick={() => setShowCalibration(true)}>
-                 <div className={`w-2.5 h-2.5 rounded-full ${gpsStatus === 'ok' ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500 animate-pulse'}`}></div>
-                 
-                 {deferredPrompt && (
-                     <button onClick={handleInstallClick} className="flex items-center gap-2 bg-cyan-600/20 border border-cyan-500/50 text-cyan-400 px-3 py-1.5 rounded-full text-xs font-bold animate-pulse hover:bg-cyan-600/40 transition-colors">
-                        <Download size={14} /> YÜKLE
-                     </button>
-                 )}
-                 {!deferredPrompt && (
-                     <div className="flex flex-col">
-                         <div className="flex items-center gap-1">
-                             <Navigation size={12} className={isDark ? 'text-slate-400' : 'text-slate-600'} style={{ transform: `rotate(${effectiveHeading || 0}deg)` }} />
-                             <span className={`text-xs font-bold truncate max-w-[120px] ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{locationName || "Konum Aranıyor..."}</span>
+        <div className="flex justify-between items-start px-6 pt-6 pb-2 z-20 shrink-0">
+             <div className="flex flex-col gap-2">
+                 <div className="flex items-center gap-3 active:scale-95 transition-transform" onClick={() => setShowCalibration(true)}>
+                     <div className={`w-2.5 h-2.5 rounded-full ${gpsStatus === 'ok' ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500 animate-pulse'}`}></div>
+                     
+                     {deferredPrompt && (
+                         <button onClick={handleInstallClick} className="flex items-center gap-2 bg-cyan-600/20 border border-cyan-500/50 text-cyan-400 px-3 py-1.5 rounded-full text-xs font-bold animate-pulse hover:bg-cyan-600/40 transition-colors">
+                            <Download size={14} /> YÜKLE
+                         </button>
+                     )}
+                     {!deferredPrompt && (
+                         <div className="flex flex-col">
+                             <div className="flex items-center gap-1">
+                                 <Navigation size={12} className={isDark ? 'text-slate-400' : 'text-slate-600'} style={{ transform: `rotate(${effectiveHeading || 0}deg)` }} />
+                                 <span className={`text-xs font-bold truncate max-w-[120px] ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{locationName || "Konum Aranıyor..."}</span>
+                             </div>
                          </div>
-                     </div>
-                 )}
+                     )}
+                 </div>
+                 
+                 {/* RADIO PLAYER */}
+                 <MiniRadio isDark={isDark} />
              </div>
              
              <DigitalClock isDark={isDark} toggleTheme={toggleTheme} batteryLevel={batteryLevel} />
@@ -704,6 +821,8 @@ const App: React.FC = () => {
         {/* MAIN DISPLAY */}
         <div className="flex-1 flex flex-col justify-center items-center relative z-10 w-full min-h-0">
              <Speedometer speed={speed} onClick={() => setExpandedView('speed')} isDark={isDark} />
+             
+             {/* LEAN DASHBOARD - DYNAMIC VISIBILITY */}
              <LeanDashboard 
                 angle={leanAngle} 
                 maxLeft={maxLeft} 
@@ -715,12 +834,15 @@ const App: React.FC = () => {
              />
         </div>
 
-        {/* INFO CLUSTER */}
+        {/* INFO CLUSTER GRID (2x2) */}
         <EnvGrid 
             weather={weather} 
             analysis={analysis} 
             bikeSpeed={speed} 
-            bikeHeading={effectiveHeading} 
+            bikeHeading={effectiveHeading}
+            altitude={altitude}
+            tripTime={tripDuration}
+            tripDistance={tripDistance}
             isDark={isDark}
             onExpand={(type: string) => setExpandedView(type)}
         />
