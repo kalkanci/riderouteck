@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download, Settings, RefreshCw, CheckCircle2, Moon, Maximize2, X, Battery, BatteryCharging, Timer, TrendingUp, Shield, ShieldAlert, ShieldCheck, Bike, Bluetooth, Smartphone, Radio, Play, Pause, SkipForward, Music, Headphones, Crosshair } from 'lucide-react';
+import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download, Settings, RefreshCw, CheckCircle2, Moon, Maximize2, X, Battery, BatteryCharging, Timer, TrendingUp, Shield, ShieldAlert, ShieldCheck, Bike, Bluetooth, Smartphone, Radio, Play, Pause, SkipForward, Music, Headphones, Crosshair, Move } from 'lucide-react';
 import { WeatherData, CoPilotAnalysis } from './types';
 import { getWeatherForPoint, reverseGeocode } from './services/api';
 
 // --- RADIO STATIONS ---
-// Updated to reliable direct streams
+// Updated to highly stable StreamTheWorld HTTPS streams
 const RADIO_STATIONS = [
-    { name: "Power FM", url: "https://listen.powerapp.com.tr/powerfm/icecast.audio" },
-    { name: "Fenomen", url: "https://listen.radyofenomen.com/fenomen/128/icecast.audio" },
-    { name: "Number1", url: "https://n10101m.mediatriple.net/numberone" }
+    { name: "Metro FM", url: "https://17703.live.streamtheworld.com/METRO_FM_SC" },
+    { name: "Virgin Radio", url: "https://17733.live.streamtheworld.com/VIRGIN_RADIO_SC" },
+    { name: "Joy Turk", url: "https://17753.live.streamtheworld.com/JOY_TURK_SC" },
+    { name: "Fenomen", url: "https://listen.radyofenomen.com/fenomen/128/icecast.audio" }
 ];
 
 // --- MATH UTILS ---
@@ -328,8 +329,6 @@ const MiniRadio = ({ isDark }: { isDark: boolean }) => {
         const audio = audioRef.current;
         if (!audio) return;
 
-        // Note: When stationIdx changes, React updates the src prop below.
-        // We just need to ensure play state is respected.
         if (isPlaying) {
              const playPromise = audio.play();
              if (playPromise !== undefined) {
@@ -378,13 +377,22 @@ const MiniRadio = ({ isDark }: { isDark: boolean }) => {
     );
 };
 
-const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, altitude, maxLeft, maxRight, accuracy, isDark, onExpand }: any) => {
+const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, altitude, maxLeft, maxRight, longitudinalG, gForce, isDark, onExpand }: any) => {
     const apparentWind = weather ? calculateApparentWind(bikeSpeed, bikeHeading, weather.windSpeed, weather.windDirection) : 0;
     
     const cardClass = isDark ? "bg-[#111827] border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900 shadow-md";
     const labelClass = isDark ? "text-slate-500" : "text-slate-500 font-semibold";
     const cardinalDir = getCardinalDirection(bikeHeading || 0);
     
+    // Logic for G-Monitor Status
+    let gStatus = "SABİT";
+    let gColor = "text-slate-500";
+    let gIcon = <Activity size={24} />;
+    
+    if (longitudinalG < -0.2) { gStatus = "FRENLEME"; gColor = "text-rose-500"; gIcon = <ArrowUp size={24} className="rotate-180 text-rose-500" />; }
+    else if (longitudinalG > 0.2) { gStatus = "HIZLANMA"; gColor = "text-emerald-500"; gIcon = <ArrowUp size={24} className="text-emerald-500" />; }
+    else if (gForce > 0.3) { gStatus = "VİRAJ"; gColor = "text-cyan-500"; gIcon = <RotateCcw size={24} className="text-cyan-500" />; }
+
     return (
         <div className="flex flex-col px-4 w-full mb-6 mt-auto gap-4 pb-8">
             <div className="grid grid-cols-2 gap-4">
@@ -420,25 +428,19 @@ const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, altitude, maxLeft,
                     </div>
                 </div>
 
-                {/* TELEMETRY CARD (REPLACED TRIP CARD) */}
+                {/* G-MONITOR CARD (REPLACED TIME/TELEMETRY CARD) */}
                 <div onClick={() => onExpand('lean')} className={`${cardClass} border rounded-2xl p-4 flex flex-col relative overflow-hidden h-28 active:scale-95 cursor-pointer`}>
-                     <div className="absolute top-2 right-2 opacity-30">
-                         <Compass size={24} style={{ transform: `rotate(${bikeHeading || 0}deg)` }} className="transition-transform duration-500" />
+                     <div className="absolute top-2 right-2 opacity-30 animate-pulse">
+                         {gIcon}
                      </div>
-                     <div className="flex justify-between items-start">
-                         <span className={`text-[9px] font-bold uppercase tracking-wider ${labelClass}`}>TELEMETRİ</span>
-                         <span className={`text-[8px] font-bold px-1 rounded ${accuracy < 10 ? 'bg-emerald-500/20 text-emerald-500' : 'bg-amber-500/20 text-amber-500'}`}>
-                             ±{Math.round(accuracy)}m
-                         </span>
-                     </div>
+                     <span className={`text-[9px] font-bold uppercase tracking-wider ${labelClass}`}>G-MONİTÖR</span>
                      
                      <div className="flex flex-col mt-auto">
-                        <span className="text-2xl font-black tracking-tighter leading-none truncate">{cardinalDir}</span>
-                        <div className="flex gap-2 mt-1">
-                            <span className="text-[10px] font-bold opacity-70">MAX YATIŞ:</span>
-                            <span className="text-[10px] font-black text-cyan-500">L:{Math.round(Math.abs(maxLeft))}°</span>
-                            <span className="text-[10px] font-black text-cyan-500">R:{Math.round(maxRight)}°</span>
+                        <div className="flex items-baseline gap-1">
+                            <span className="text-3xl font-black tracking-tighter leading-none">{gForce.toFixed(2)}</span>
+                            <span className="text-xs font-bold opacity-60">G</span>
                         </div>
+                        <span className={`text-[10px] font-black tracking-widest mt-1 ${gColor}`}>{gStatus}</span>
                      </div>
                 </div>
             </div>
@@ -558,6 +560,7 @@ const App: React.FC = () => {
   
   const [leanAngle, setLeanAngle] = useState(0);
   const [gForce, setGForce] = useState(0);
+  const [longitudinalG, setLongitudinalG] = useState(0); // For accel/brake detection
   
   // Specific G-Forces
   const [maxLeft, setMaxLeft] = useState(0);
@@ -672,7 +675,6 @@ const App: React.FC = () => {
             const z = e.acceleration.z || 0;
             const totalAccel = Math.sqrt(x*x + y*y + z*z);
             const currentG = Math.abs(totalAccel / 9.8);
-            
             setGForce(currentG); 
         }
     };
@@ -710,6 +712,8 @@ const App: React.FC = () => {
                     const accel_ms2 = deltaV_ms / timeDelta;
                     const g = accel_ms2 / 9.81;
                     
+                    setLongitudinalG(g); // Store directional G
+
                     if (g > 0) {
                         if (g > maxAccelG) setMaxAccelG(g);
                     } else {
@@ -859,6 +863,8 @@ const App: React.FC = () => {
             maxLeft={maxLeft}
             maxRight={maxRight}
             accuracy={accuracy}
+            longitudinalG={longitudinalG}
+            gForce={gForce}
             isDark={isDark}
             onExpand={(type: string) => setExpandedView(type)}
         />
