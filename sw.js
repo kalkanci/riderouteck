@@ -1,42 +1,49 @@
 
-const CACHE_NAME = 'motorota-v1';
+const CACHE_NAME = 'motorota-v2';
 const urlsToCache = [
   './',
-  './index.html',
-  './index.tsx',
-  './App.tsx',
-  './types.ts',
-  './services/api.ts'
+  './index.html'
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        return cache.addAll(urlsToCache);
+        // Only cache critical static assets, ignore failures
+        return cache.addAll(urlsToCache).catch(err => console.log('Cache add failed', err));
       })
   );
 });
 
 self.addEventListener('fetch', (event) => {
+  // Network First, Fallback to Cache strategy (safer for dynamic apps)
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then((response) => {
-        if (response) {
+        // Update cache if successful
+        if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
         }
-        return fetch(event.request);
+        const responseToCache = response.clone();
+        caches.open(CACHE_NAME)
+          .then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        return response;
+      })
+      .catch(() => {
+        return caches.match(event.request);
       })
   );
 });
 
 self.addEventListener('activate', (event) => {
-  const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
+          if (cacheName !== CACHE_NAME) {
             return caches.delete(cacheName);
           }
         })
