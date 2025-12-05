@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download, Settings, RefreshCw, CheckCircle2, Moon, Maximize2, X, Battery, BatteryCharging, Timer, TrendingUp, Shield, ShieldAlert, ShieldCheck, Bike, Bluetooth, Smartphone, Radio, Play, Pause, SkipForward, Music, Headphones } from 'lucide-react';
+import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download, Settings, RefreshCw, CheckCircle2, Moon, Maximize2, X, Battery, BatteryCharging, Timer, TrendingUp, Shield, ShieldAlert, ShieldCheck, Bike, Bluetooth, Smartphone, Radio, Play, Pause, SkipForward, Music, Headphones, Crosshair } from 'lucide-react';
 import { WeatherData, CoPilotAnalysis } from './types';
 import { getWeatherForPoint, reverseGeocode } from './services/api';
 
@@ -30,6 +30,11 @@ const calculateApparentWind = (
     const resX = inducedX + trueX;
     const resY = inducedY + trueY;
     return Math.round(Math.sqrt(resX * resX + resY * resY));
+};
+
+const getCardinalDirection = (angle: number) => {
+    const directions = ['KUZEY', 'K.DOĞU', 'DOĞU', 'G.DOĞU', 'GÜNEY', 'G.BATI', 'BATI', 'K.BATI'];
+    return directions[Math.round(angle / 45) % 8];
 };
 
 const getWeatherIcon = (code: number, size = 32, isDark = true) => {
@@ -373,16 +378,12 @@ const MiniRadio = ({ isDark }: { isDark: boolean }) => {
     );
 };
 
-const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, altitude, tripTime, tripDistance, isDark, onExpand }: any) => {
+const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, altitude, maxLeft, maxRight, accuracy, isDark, onExpand }: any) => {
     const apparentWind = weather ? calculateApparentWind(bikeSpeed, bikeHeading, weather.windSpeed, weather.windDirection) : 0;
     
     const cardClass = isDark ? "bg-[#111827] border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900 shadow-md";
     const labelClass = isDark ? "text-slate-500" : "text-slate-500 font-semibold";
-
-    // Format time HH:MM
-    const hours = Math.floor(tripTime / 3600);
-    const mins = Math.floor((tripTime % 3600) / 60);
-    const timeStr = `${hours}s ${mins}dk`;
+    const cardinalDir = getCardinalDirection(bikeHeading || 0);
     
     return (
         <div className="flex flex-col px-4 w-full mb-6 mt-auto gap-4 pb-8">
@@ -419,13 +420,25 @@ const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, altitude, tripTime
                     </div>
                 </div>
 
-                {/* TRIP CARD */}
-                <div onClick={() => onExpand('speed')} className={`${cardClass} border rounded-2xl p-4 flex flex-col relative overflow-hidden h-28 active:scale-95 cursor-pointer`}>
-                     <div className="absolute top-2 right-2 opacity-30"><Timer size={24} /></div>
-                     <span className={`text-[9px] font-bold uppercase tracking-wider ${labelClass}`}>YOLCULUK</span>
+                {/* TELEMETRY CARD (REPLACED TRIP CARD) */}
+                <div onClick={() => onExpand('lean')} className={`${cardClass} border rounded-2xl p-4 flex flex-col relative overflow-hidden h-28 active:scale-95 cursor-pointer`}>
+                     <div className="absolute top-2 right-2 opacity-30">
+                         <Compass size={24} style={{ transform: `rotate(${bikeHeading || 0}deg)` }} className="transition-transform duration-500" />
+                     </div>
+                     <div className="flex justify-between items-start">
+                         <span className={`text-[9px] font-bold uppercase tracking-wider ${labelClass}`}>TELEMETRİ</span>
+                         <span className={`text-[8px] font-bold px-1 rounded ${accuracy < 10 ? 'bg-emerald-500/20 text-emerald-500' : 'bg-amber-500/20 text-amber-500'}`}>
+                             ±{Math.round(accuracy)}m
+                         </span>
+                     </div>
+                     
                      <div className="flex flex-col mt-auto">
-                        <span className="text-2xl font-black tracking-tighter leading-none">{timeStr}</span>
-                        <span className="text-[10px] opacity-60 font-bold mt-1">{tripDistance.toFixed(1)} km</span>
+                        <span className="text-2xl font-black tracking-tighter leading-none truncate">{cardinalDir}</span>
+                        <div className="flex gap-2 mt-1">
+                            <span className="text-[10px] font-bold opacity-70">MAX YATIŞ:</span>
+                            <span className="text-[10px] font-black text-cyan-500">L:{Math.round(Math.abs(maxLeft))}°</span>
+                            <span className="text-[10px] font-black text-cyan-500">R:{Math.round(maxRight)}°</span>
+                        </div>
                      </div>
                 </div>
             </div>
@@ -843,6 +856,9 @@ const App: React.FC = () => {
             altitude={altitude}
             tripTime={tripDuration}
             tripDistance={tripDistance}
+            maxLeft={maxLeft}
+            maxRight={maxRight}
+            accuracy={accuracy}
             isDark={isDark}
             onExpand={(type: string) => setExpandedView(type)}
         />

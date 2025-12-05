@@ -1,9 +1,9 @@
 
-const CACHE_NAME = 'motorota-v7-simple';
+const CACHE_NAME = 'motorota-v8-stable';
 const STATIC_ASSETS = [
-  './',
   './index.html',
-  './manifest.json'
+  './manifest.json',
+  './index.tsx'
 ];
 
 // Install Event: Cache core files
@@ -32,14 +32,35 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch Event: Simple Network First, Fallback to Cache
+// Fetch Event: Network First with Navigation Fallback
 self.addEventListener('fetch', (event) => {
+  // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
+  // SPA Navigation Strategy: If navigation fails (404/Offline), show index.html
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          // If server returns 404 or error for the page, fall back to cache
+          if (!response || !response.ok) {
+             return caches.match('./index.html');
+          }
+          return response;
+        })
+        .catch(() => {
+          // Offline fallback
+          return caches.match('./index.html');
+        })
+    );
+    return;
+  }
+
+  // Standard Asset Strategy: Network First, then Cache
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
-        // Update cache if successful
+        // Update cache if successful and valid
         if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
