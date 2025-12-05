@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download, Settings, RefreshCw, CheckCircle2, Moon, Maximize2, X, Battery, BatteryCharging, Timer, TrendingUp } from 'lucide-react';
+import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download, Settings, RefreshCw, CheckCircle2, Moon, Maximize2, X, Battery, BatteryCharging, Timer, TrendingUp, Shield, ShieldAlert, ShieldCheck, Bike } from 'lucide-react';
 import { WeatherData, CoPilotAnalysis } from './types';
 import { getWeatherForPoint, reverseGeocode } from './services/api';
 
@@ -62,36 +62,39 @@ const DetailOverlay = ({ type, data, onClose, theme }: any) => {
     const isDark = theme === 'dark';
     const bgClass = isDark ? "bg-[#0b0f19]/95" : "bg-slate-50/95";
     const textClass = isDark ? "text-white" : "text-slate-900";
-    const subTextClass = isDark ? "text-slate-400" : "text-slate-500";
     const borderClass = isDark ? "border-slate-800" : "border-slate-200";
 
     return (
         <div className={`fixed inset-0 z-50 flex flex-col p-6 backdrop-blur-md animate-in slide-in-from-bottom-10 ${bgClass} ${textClass}`}>
-            <div className="flex justify-between items-center mb-8">
-                <h2 className="text-2xl font-black uppercase tracking-widest">{type === 'speed' ? 'Sürüş Özeti' : type === 'weather' ? 'Hava Detayı' : 'Yatış & G-Force'}</h2>
+            <div className="flex justify-between items-center mb-6 shrink-0">
+                <h2 className="text-2xl font-black uppercase tracking-widest">
+                    {type === 'speed' ? 'Sürüş Özeti' : 
+                     type === 'weather' ? 'Hava Detayı' : 
+                     type === 'copilot' ? 'Taktiksel Analiz' : 'Yatış & G-Force'}
+                </h2>
                 <button onClick={(e) => { e.stopPropagation(); onClose(); }} className={`p-2 rounded-full ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
                     <X size={24} />
                 </button>
             </div>
 
-            <div className="flex-1 flex flex-col gap-6 overflow-y-auto no-scrollbar">
+            <div className="flex-1 flex flex-col gap-4 overflow-y-auto no-scrollbar pb-10">
                 {type === 'speed' && (
                     <>
-                        <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+                        <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'}`}>
                             <div className="flex items-center gap-2 mb-2 opacity-70">
                                 <TrendingUp size={20} className="text-cyan-500" />
                                 <span className="text-xs font-bold uppercase">Maksimum Hız</span>
                             </div>
                             <div className="text-6xl font-black tabular-nums">{Math.round(data.maxSpeed)} <span className="text-xl">km/h</span></div>
                         </div>
-                        <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+                        <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'}`}>
                             <div className="flex items-center gap-2 mb-2 opacity-70">
                                 <Timer size={20} className="text-amber-500" />
                                 <span className="text-xs font-bold uppercase">Yapılan Yol</span>
                             </div>
                             <div className="text-6xl font-black tabular-nums">{data.tripDistance.toFixed(1)} <span className="text-xl">km</span></div>
                         </div>
-                        <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+                        <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'}`}>
                              <div className="flex items-center gap-2 mb-2 opacity-70">
                                 <Activity size={20} className="text-emerald-500" />
                                 <span className="text-xs font-bold uppercase">Ortalama Hız</span>
@@ -104,16 +107,16 @@ const DetailOverlay = ({ type, data, onClose, theme }: any) => {
                 {type === 'weather' && (
                     <>
                         <div className="grid grid-cols-2 gap-4">
-                            <div className={`p-4 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+                            <div className={`p-4 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'}`}>
                                 <span className="text-xs font-bold opacity-60 block mb-1">HİSSEDİLEN</span>
                                 <span className="text-4xl font-black">{Math.round(data.weather?.feelsLike || 0)}°</span>
                             </div>
-                            <div className={`p-4 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+                            <div className={`p-4 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'}`}>
                                 <span className="text-xs font-bold opacity-60 block mb-1">YAĞIŞ İHTİMALİ</span>
                                 <span className="text-4xl font-black text-cyan-500">%{data.weather?.rainProb}</span>
                             </div>
                         </div>
-                        <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+                        <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'}`}>
                              <div className="flex items-center gap-2 mb-4 opacity-70">
                                 <Wind size={24} />
                                 <span className="text-sm font-bold uppercase">Rüzgar Analizi</span>
@@ -126,18 +129,53 @@ const DetailOverlay = ({ type, data, onClose, theme }: any) => {
                                 <span>Hissedilen (Bağıl)</span>
                                 <span className={`text-3xl font-black ${data.apparentWind > 50 ? 'text-rose-500' : 'text-cyan-500'}`}>{data.apparentWind} km/s</span>
                             </div>
-                            <p className="mt-4 text-xs opacity-60">
-                                Motosiklet üzerindeki hızınız rüzgar şiddetini artırır. Bu değer kaskınıza çarpan rüzgardır.
+                            <p className="mt-4 text-xs opacity-60 leading-relaxed">
+                                Motosiklet üzerindeki hızınız rüzgar şiddetini artırır. Bu değer kaskınıza ve göğsünüze çarpan rüzgardır.
                             </p>
                         </div>
                     </>
+                )}
+
+                {type === 'copilot' && (
+                    <div className="flex flex-col gap-4">
+                        <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'} flex items-center gap-4`}>
+                             {data.analysis.status === 'safe' ? <ShieldCheck size={48} className="text-emerald-500" /> : 
+                              data.analysis.status === 'caution' ? <Shield size={48} className="text-amber-500" /> : 
+                              <ShieldAlert size={48} className="text-rose-500" />}
+                             <div>
+                                 <h3 className={`text-xl font-black italic ${data.analysis.color}`}>{data.analysis.roadCondition}</h3>
+                                 <p className="text-sm opacity-70">{data.analysis.message}</p>
+                             </div>
+                        </div>
+
+                        <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'}`}>
+                            <div className="flex items-center gap-2 mb-4 opacity-70">
+                                <Bike size={20} />
+                                <span className="text-xs font-bold uppercase">Sürüş Tavsiyeleri</span>
+                            </div>
+                            <ul className="space-y-3 text-sm">
+                                <li className="flex gap-3 items-start">
+                                    <span className="bg-cyan-500/20 text-cyan-500 p-1 rounded">1</span>
+                                    <span>{data.weather?.temp < 15 ? "Lastikler soğuk olabilir, agresif yatıştan kaçın." : "Asfalt sıcaklığı ideal, lastik tutuşu yüksek."}</span>
+                                </li>
+                                <li className="flex gap-3 items-start">
+                                    <span className="bg-cyan-500/20 text-cyan-500 p-1 rounded">2</span>
+                                    <span>{data.weather?.windSpeed > 20 ? "Rüzgar hamlelerine karşı depo ile bütünleş, gidonu sıkma." : "Rüzgar stabil, konforlu sürüş."}</span>
+                                </li>
+                                <li className="flex gap-3 items-start">
+                                    <span className="bg-cyan-500/20 text-cyan-500 p-1 rounded">3</span>
+                                    <span>{data.weather?.rainProb > 20 ? "Yağmurluk erişilebilir bir yerde olsun." : "Yağış beklenmiyor, keyfini çıkar."}</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
                 )}
 
                 {type === 'lean' && (
                     <div className="flex flex-col gap-4 h-full justify-center text-center">
                         <div className="text-8xl font-black text-slate-300 opacity-20 rotate-90">((( )))</div>
                         <p className="text-lg font-bold opacity-80">G-Force ve Yatış Geçmişi</p>
-                        <p className="text-sm opacity-50">Çok yakında bu ekranda viraj analizi ve g-force grafikleri yer alacak.</p>
+                        <p className="text-sm opacity-50">Çok yakında bu ekranda detaylı viraj grafikleri ve frenleme G kuvveti analizi yer alacak.</p>
                     </div>
                 )}
             </div>
@@ -160,12 +198,12 @@ const Speedometer = ({ speed, onClick, isDark }: { speed: number, onClick: () =>
     }
 
     return (
-        <div onClick={onClick} className="flex flex-col items-center justify-center relative py-8 transition-colors duration-500 cursor-pointer active:scale-95 transform">
+        <div onClick={onClick} className="flex flex-col items-center justify-center relative py-6 transition-colors duration-500 cursor-pointer active:scale-95 transform">
             <div className={`absolute inset-0 blur-[80px] rounded-full transition-all duration-700 ${glowClass}`}></div>
             <div className={`text-8xl sm:text-[9rem] font-black italic tracking-tighter leading-none drop-shadow-sm tabular-nums z-10 transition-colors duration-300 ${colorClass}`}>
                 {Math.round(speed)}
             </div>
-            <div className="text-xl font-bold text-cyan-500 tracking-[0.3em] mt-0 z-10 opacity-80 flex items-center gap-2">
+            <div className="text-xl font-bold text-cyan-500 tracking-[0.3em] mt-2 z-10 opacity-80 flex items-center gap-2">
                 KM/H <Maximize2 size={12} className="opacity-50" />
             </div>
         </div>
@@ -185,7 +223,7 @@ const LeanDashboard = ({ angle, maxLeft, maxRight, gForce, onReset, isDark, onEx
     const barBgClass = isDark ? "bg-slate-800/30" : "bg-slate-200";
 
     return (
-        <div className="w-full px-6 mb-4 cursor-pointer" onClick={onExpand}>
+        <div className="w-full px-6 mb-2 cursor-pointer" onClick={onExpand}>
             <div className="flex justify-between items-end mb-3 px-2">
                 <div className="text-center w-20">
                     <span className="text-[9px] font-bold block mb-1 opacity-60">MAX SOL</span>
@@ -227,11 +265,11 @@ const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, isDark, onExpand }
     const apparentWind = weather ? calculateApparentWind(bikeSpeed, bikeHeading, weather.windSpeed, weather.windDirection) : 0;
     const isMoving = bikeSpeed > 10;
 
-    const cardClass = isDark ? "bg-[#111827] border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900 shadow-sm";
-    const labelClass = isDark ? "text-slate-500" : "text-slate-400";
+    const cardClass = isDark ? "bg-[#111827] border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900 shadow-md";
+    const labelClass = isDark ? "text-slate-500" : "text-slate-500 font-semibold";
     
     return (
-        <div className="flex flex-col px-4 w-full mb-6 gap-3" onClick={onExpand}>
+        <div className="flex flex-col px-4 w-full mb-8 gap-4 mt-auto">
             
             {rainWarning && (
                 <div className="w-full bg-cyan-900/40 border border-cyan-500/50 rounded-xl p-3 flex items-center justify-center gap-3 animate-pulse shadow-[0_0_20px_rgba(6,182,212,0.3)]">
@@ -243,47 +281,32 @@ const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, isDark, onExpand }
                 </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3 cursor-pointer">
-                <div className={`${cardClass} border rounded-2xl p-4 flex flex-col relative overflow-hidden h-full`}>
+            <div className="grid grid-cols-2 gap-4">
+                {/* WEATHER CARD */}
+                <div onClick={() => onExpand('weather')} className={`${cardClass} border rounded-2xl p-4 flex flex-col relative overflow-hidden h-32 active:scale-95 transition-transform cursor-pointer`}>
                     <div className="absolute top-2 right-2 opacity-30">{weather ? getWeatherIcon(weather.weatherCode, 32, isDark) : <Activity />}</div>
                     
                     <div className="flex-1">
                         <span className={`text-[10px] font-bold uppercase tracking-wider ${labelClass}`}>SICAKLIK</span>
                         <div className="flex items-baseline gap-2 mt-0">
-                            <span className="text-5xl font-black tracking-tighter leading-none">{weather ? Math.round(weather.temp) : '--'}°</span>
+                            <span className="text-4xl font-black tracking-tighter leading-none">{weather ? Math.round(weather.temp) : '--'}°</span>
                         </div>
                         <div className="mt-1 flex items-center gap-1">
-                             <span className={`text-[10px] font-bold ${labelClass}`}>HİSSEDİLEN:</span>
-                             <span className="text-xl font-bold text-cyan-500">{weather ? Math.round(weather.feelsLike) : '--'}°</span>
-                        </div>
-                    </div>
-
-                    <div className={`mt-3 border-t pt-2 ${isDark ? 'border-slate-800/50' : 'border-slate-100'}`}>
-                        <div className="flex justify-between items-end">
-                            <div>
-                                <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${labelClass}`}><Wind size={10}/> RÜZGAR</span>
-                                <div className="flex items-end gap-1">
-                                    <span className="text-2xl font-black leading-none">{weather ? Math.round(weather.windSpeed) : '-'}</span>
-                                    <span className={`text-[9px] font-bold mb-1 ${labelClass}`}>KM</span>
-                                </div>
-                            </div>
-                            <div className={`text-right ${isMoving ? 'opacity-100' : 'opacity-40'} transition-opacity duration-500`}>
-                                <span className={`text-[9px] font-bold uppercase tracking-wider ${labelClass}`}>BAĞIL</span>
-                                <div className="flex items-end gap-1 justify-end">
-                                    <span className={`text-3xl font-black leading-none ${apparentWind > 50 ? 'text-rose-500' : 'text-cyan-500'}`}>
-                                        {apparentWind}
-                                    </span>
-                                </div>
-                            </div>
+                             <span className={`text-[10px] font-bold ${labelClass}`}>RÜZGAR:</span>
+                             <span className="text-lg font-bold text-cyan-500">{weather ? Math.round(weather.windSpeed) : '-'}</span>
                         </div>
                     </div>
                 </div>
 
-                <div className={`${cardClass} border rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden transition-colors duration-500 h-full ${analysis.status === 'danger' ? 'border-rose-500/50 bg-rose-500/10' : analysis.status === 'caution' ? 'border-amber-500/50 bg-amber-500/10' : ''}`}>
+                {/* CO-PILOT CARD */}
+                <div onClick={() => onExpand('copilot')} className={`${cardClass} border rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden transition-all duration-500 h-32 active:scale-95 cursor-pointer ${analysis.status === 'danger' ? 'border-rose-500/50 bg-rose-500/10' : analysis.status === 'caution' ? 'border-amber-500/50 bg-amber-500/10' : ''}`}>
                     <span className={`text-[10px] font-bold uppercase tracking-wider ${labelClass}`}>CO-PILOT</span>
                     <div className="mt-1 z-10 relative flex-1 flex flex-col justify-center">
-                        <div className={`text-xl font-black leading-tight italic ${analysis.color}`}>{analysis.roadCondition}</div>
-                        <div className={`text-[10px] font-bold mt-2 leading-tight opacity-90 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{analysis.message}</div>
+                        <div className={`text-lg font-black leading-tight italic ${analysis.color}`}>{analysis.roadCondition}</div>
+                        <div className={`text-[10px] font-bold mt-1 leading-tight opacity-90 line-clamp-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{analysis.message}</div>
+                    </div>
+                    <div className="absolute bottom-2 right-2 opacity-10">
+                        <Shield size={40} />
                     </div>
                 </div>
             </div>
@@ -295,11 +318,11 @@ const FooterTelemetry = ({ heading, altitude, locationName, accuracy, isGpsHeadi
     const directions = ['K', 'KD', 'D', 'GD', 'G', 'GB', 'B', 'KB'];
     const compassDir = heading !== null ? directions[Math.round(heading / 45) % 8] : '--';
     
-    const bgClass = isDark ? "bg-[#0f1523] border-slate-800" : "bg-white border-slate-200 shadow-[0_-5px_20px_rgba(0,0,0,0.05)]";
+    const bgClass = isDark ? "bg-[#0f1523] border-slate-800" : "bg-white border-slate-200 shadow-[0_-5px_30px_rgba(0,0,0,0.1)]";
     const textMain = isDark ? "text-white" : "text-slate-900";
 
     return (
-        <div className={`w-full border-t pt-4 pb-8 px-6 rounded-t-3xl z-20 shrink-0 ${bgClass}`}>
+        <div className={`w-full border-t pt-5 pb-8 px-6 rounded-t-3xl z-20 shrink-0 ${bgClass}`}>
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3 active:scale-95 transition-transform cursor-pointer" onClick={onOpenCalibration}>
                     <div 
@@ -408,7 +431,7 @@ const App: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showCalibration, setShowCalibration] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const [expandedView, setExpandedView] = useState<string | null>(null); // 'speed', 'lean', 'weather'
+  const [expandedView, setExpandedView] = useState<string | null>(null); // 'speed', 'lean', 'weather', 'copilot'
 
   const wakeLockRef = useRef<any>(null);
   const lastLocationUpdate = useRef<number>(0);
@@ -553,9 +576,10 @@ const App: React.FC = () => {
   const expandedData = {
       maxSpeed,
       tripDistance,
-      avgSpeed: tripDistance > 0 ? 0 : 0, // Simplified for now, real avg needs totalTime
+      avgSpeed: tripDistance > 0 ? 0 : 0, 
       weather,
-      apparentWind: weather ? calculateApparentWind(speed, effectiveHeading, weather.windSpeed, weather.windDirection) : 0
+      apparentWind: weather ? calculateApparentWind(speed, effectiveHeading, weather.windSpeed, weather.windDirection) : 0,
+      analysis // Pass analysis to expanded data
   };
 
   return (
@@ -615,7 +639,7 @@ const App: React.FC = () => {
             bikeSpeed={speed} 
             bikeHeading={effectiveHeading} 
             isDark={isDark}
-            onExpand={() => setExpandedView('weather')}
+            onExpand={(type: string) => setExpandedView(type)}
         />
 
         {/* FOOTER */}
