@@ -258,7 +258,7 @@ const DashboardHeader = ({ speed, altitude, heading, accuracy, tripTime, leanAng
     </div>
 );
 
-const RoadbookRow = ({ dist, weather }: { dist: number, weather: WeatherData }) => {
+const RoadbookRow: React.FC<{ dist: number, weather: WeatherData }> = ({ dist, weather }) => {
     const isWet = weather.rainProb > 40 || weather.rain > 0.5;
     return (
         <div className="flex gap-4 relative pl-4 pr-4">

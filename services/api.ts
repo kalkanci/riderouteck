@@ -1,292 +1,306 @@
-import { LocationData, WeatherData, RouteAlternative, ElevationStats, PoiData, RadioStation, RouteStep } from "../types";
+import { LocationData, WeatherData, RouteAlternative, ElevationStats, RadioStation, RouteStep } from "../types";
 
-// --- RADIO BROWSER API ---
+// Robust environment variable retrieval to handle different runtimes (Vite vs Sandbox)
+const getEnv = (key: string) => {
+    try {
+        if (typeof process !== 'undefined' && process.env?.[key]) {
+            return process.env[key];
+        }
+    } catch {}
+
+    try {
+        const meta = import.meta as any;
+        // Safely access meta.env using optional chaining or logical AND
+        if (meta && meta.env && meta.env[key]) {
+            return meta.env[key];
+        }
+    } catch {}
+    
+    return undefined;
+};
+
+const GOOGLE_API_KEY = getEnv('VITE_GOOGLE_MAPS_KEY');
+
+// --- UTILS: Polyline Decoder ---
+// Decodes Google's encoded polyline algorithm into [lng, lat] array
+const decodePolyline = (encoded: string): [number, number][] => {
+    const points: [number, number][] = [];
+    let index = 0, len = encoded.length;
+    let lat = 0, lng = 0;
+
+    while (index < len) {
+        let b, shift = 0, result = 0;
+        do {
+            b = encoded.charCodeAt(index++) - 63;
+            result |= (b & 0x1f) << shift;
+            shift += 5;
+        } while (b >= 0x20);
+        const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+        lat += dlat;
+
+        shift = 0;
+        result = 0;
+        do {
+            b = encoded.charCodeAt(index++) - 63;
+            result |= (b & 0x1f) << shift;
+            shift += 5;
+        } while (b >= 0x20);
+        const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+        lng += dlng;
+
+        // GeoJSON expects [lng, lat], Google usually gives (lat, lng) logic
+        points.push([lng * 1e-5, lat * 1e-5]);
+    }
+    return points;
+};
+
+// --- RADIO BROWSER API (Kept as is) ---
 export const getRadioStations = async (tag: string): Promise<RadioStation[]> => {
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-        const res = await fetch(`https://de1.api.radio-browser.info/json/stations/bytag/${encodeURIComponent(tag)}?limit=15&order=votes&reverse=true&hidebroken=true`, {
-             signal: controller.signal
-        });
+        const res = await fetch(`https://de1.api.radio-browser.info/json/stations/bytag/${encodeURIComponent(tag)}?limit=15&order=votes&reverse=true&hidebroken=true`, { signal: controller.signal });
         clearTimeout(timeoutId);
-
         if (!res.ok) throw new Error("Radio fetch failed");
         return await res.json();
     } catch (e) {
-        console.warn("Radio API error, trying general fallback", e);
         if (tag !== 'pop') return getRadioStations('pop');
         return [];
     }
 };
 
-// --- REVERSE GEOCODING ---
+// --- GOOGLE REVERSE GEOCODING ---
 export const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
+    if (!GOOGLE_API_KEY) return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+
     try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=tr`);
-        if (!res.ok) throw new Error("Reverse geo failed");
-        
+        const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_API_KEY}&language=tr`);
         const data = await res.json();
-        const addr = data.address;
         
-        if (!addr) return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        if (data.status === 'OK' && data.results?.[0]) {
+            // Try to find a meaningful short address
+            const result = data.results[0];
+            let neighborhood = "";
+            let locality = "";
 
-        const parts: string[] = [];
-        if (addr.suburb) parts.push(addr.suburb);
-        if (addr.neighbourhood) parts.push(addr.neighbourhood);
-        if (addr.road) parts.push(addr.road);
-        if (addr.town) parts.push(addr.town);
-        if (addr.district) parts.push(addr.district);
-        if (addr.city) parts.push(addr.city);
-        else if (addr.province) parts.push(addr.province);
+            result.address_components.forEach((comp: any) => {
+                if (comp.types.includes("neighborhood") || comp.types.includes("sublocality")) neighborhood = comp.long_name;
+                if (comp.types.includes("locality") || comp.types.includes("administrative_area_level_1")) locality = comp.long_name;
+            });
 
-        const uniqueParts = [...new Set(parts)];
-        return uniqueParts.join(', ') || data.display_name.split(',')[0];
-
+            if (neighborhood && locality) return `${neighborhood}, ${locality}`;
+            return result.formatted_address.split(',')[0];
+        }
+        return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
     } catch (e) {
         return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
     }
 };
 
-// --- LOCATION SEARCH ---
+// --- GOOGLE PLACES SEARCH ---
 export const searchLocation = async (query: string): Promise<LocationData[]> => {
-  if (query.length < 3) return [];
-
-  const lowerQ = query.toLowerCase();
-  let finalQuery = query;
-
-  const keywords: Record<string, string> = {
-      'benzin': 'fuel',
-      'petrol': 'fuel',
-      'akaryakıt': 'fuel',
-      'avm': 'mall',
-      'alışveriş': 'mall',
-      'yemek': 'restaurant',
-      'eczane': 'pharmacy',
-      'otel': 'hotel',
-      'market': 'supermarket',
-      'tamir': 'motorcycle_repair'
-  };
-
-  if (keywords[lowerQ]) {
-      finalQuery = keywords[lowerQ];
-  }
-
-  const mapNominatimData = (data: any[]): LocationData[] => {
-     return data.map((item: any) => {
-        let name = item.name; 
-        
-        if (!name && item.address) {
-            if (item.address.amenity) name = item.address.amenity;
-            else if (item.address.shop) name = item.address.shop;
-            else if (item.address.tourism) name = item.address.tourism;
-            else if (item.address.leisure) name = item.address.leisure;
-            else if (item.address.building) name = item.address.building;
-        }
-
-        if (!name) name = item.display_name.split(',')[0];
-
-        let admin = item.address.state || item.address.province || item.address.city || item.address.town || item.display_name.split(',').slice(1,3).join(',');
-        
-        return {
-          name: name,
-          lat: parseFloat(item.lat),
-          lng: parseFloat(item.lon),
-          admin1: admin,
-          type: item.type 
-        };
-    });
-  };
+  if (query.length < 3 || !GOOGLE_API_KEY) return [];
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000); 
-
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(finalQuery)}&format=json&addressdetails=1&limit=8&accept-language=tr&dedupe=1`, {
-        signal: controller.signal
+    // Using Places API (New) - Text Search
+    const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': GOOGLE_API_KEY,
+            'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.types'
+        },
+        body: JSON.stringify({
+            textQuery: query,
+            languageCode: 'tr',
+            maxResultCount: 8
+        })
     });
-    clearTimeout(timeoutId);
 
-    if (!res.ok) throw new Error(`Nominatim status: ${res.status}`);
     const data = await res.json();
-    
-    if (!data || data.length === 0) throw new Error("Nominatim no results");
-    return mapNominatimData(data);
+    if (!data.places) return [];
 
-  } catch (nominatimError) {
+    return data.places.map((p: any) => ({
+        name: p.displayName?.text || query,
+        lat: p.location.latitude,
+        lng: p.location.longitude,
+        admin1: p.formattedAddress?.split(',').slice(-2)[0]?.trim() || "",
+        type: p.types?.[0] || 'location'
+    }));
+
+  } catch (e) {
+     console.error("Google Places Error:", e);
      return [];
   }
 };
 
-export const getIpLocation = async (): Promise<LocationData | null> => {
-  try {
-    const res = await fetch('https://get.geojs.io/v1/ip/geo.json');
-    if (!res.ok) throw new Error("GeoJS failed");
-    
-    const data = await res.json();
-    return {
-      name: data.city,
-      lat: parseFloat(data.latitude),
-      lng: parseFloat(data.longitude),
-      admin1: data.region
+// --- GOOGLE ROUTES API ---
+// We map Google maneuvers to our app's instruction format
+const mapGoogleManeuver = (maneuver: string): string => {
+    const map: Record<string, string> = {
+        'TURN_LEFT': 'Sola dön',
+        'TURN_RIGHT': 'Sağa dön',
+        'TURN_SLIGHT_LEFT': 'Hafif sola',
+        'TURN_SLIGHT_RIGHT': 'Hafif sağa',
+        'TURN_SHARP_LEFT': 'Keskin sola',
+        'TURN_SHARP_RIGHT': 'Keskin sağa',
+        'U_TURN': 'U Dönüşü',
+        'STRAIGHT': 'Düz devam et',
+        'RAMP_LEFT': 'Bağlantıdan sola',
+        'RAMP_RIGHT': 'Bağlantıdan sağa',
+        'MERGE': 'Yola katıl',
+        'FORK_LEFT': 'Çataldan sola',
+        'FORK_RIGHT': 'Çataldan sağa',
+        'FERRY': 'Feribota bin',
+        'ROUNDABOUT_LEFT': 'Kavşaktan dön',
+        'ROUNDABOUT_RIGHT': 'Kavşaktan dön'
     };
-  } catch (e) {
-    return null;
-  }
+    return map[maneuver] || 'İlerle';
 };
 
-const getInstruction = (step: any): string => {
-    if (!step || !step.maneuver) return "İlerle";
-    
-    const m = step.maneuver;
-    const type = m.type;
-    const mod = m.modifier;
-    const name = step.name ? `(${step.name})` : "";
-    
-    // Basitleştirilmiş Türkçe yönlendirmeler
-    if (type === 'depart') return `Rotaya başla`;
-    if (type === 'arrive') return `Hedefe ulaştın`;
-    if (type === 'roundabout') return `Kavşaktan ${m.exit}. çıkış`;
-    if (mod === 'left') return `Sola dön`;
-    if (mod === 'right') return `Sağa dön`;
-    if (mod === 'slight left') return `Hafif sola`;
-    if (mod === 'slight right') return `Hafif sağa`;
-    if (mod === 'sharp left') return `Keskin sola`;
-    if (mod === 'sharp right') return `Keskin sağa`;
-    if (mod === 'uturn') return `U dönüşü`;
-
-    return `Devam et ${name}`;
-};
-
-// --- ROBUST ROUTING STRATEGY ---
 export const getRouteAlternatives = async (start: LocationData, end: LocationData): Promise<RouteAlternative[]> => {
-  
-  // Helper to format the route object
-  const mapRoute = (route: any, category: 'fastest' | 'toll_free' | 'scenic'): RouteAlternative => {
-     let name = "Rota";
-     let color = "#94a3b8";
-     let tags: string[] = [];
-     let description = "";
-     let type: 'fastest' | 'scenic' = 'fastest';
+  if (!GOOGLE_API_KEY) {
+      alert("API Anahtarı Eksik! Google Maps API Key bulunamadı.");
+      throw new Error("Missing API Key");
+  }
 
-     const durMins = Math.round(route.duration / 60);
-     const distKm = (route.distance / 1000).toFixed(1);
+  const fetchRoute = async (mode: 'fastest' | 'toll_free' | 'scenic') => {
+      const modifiers: any = {
+          avoidTolls: mode === 'toll_free',
+          avoidHighways: mode === 'scenic', // Google Proxy for "Scenic"
+          avoidFerries: false
+      };
 
-     if (category === 'fastest') {
-         name = "En Hızlı (Otoban)";
-         color = "#3b82f6"; // Blue
-         tags = ["Hızlı", "Standart"];
-         description = `${durMins} dk • ${distKm} km • Trafik akışı normal.`;
-         type = 'fastest';
-     } else if (category === 'toll_free') {
-         name = "Ücretsiz / Ekonomik";
-         color = "#f59e0b"; // Orange
-         tags = ["Gişesiz", "Ekonomik"];
-         description = `${durMins} dk • ${distKm} km • Ücretli yollardan kaçınır.`;
-         type = 'fastest';
-     } else {
-         name = "Manzara / Köy Yolu";
-         color = "#10b981"; // Emerald
-         tags = ["Virajlı", "Sakin"];
-         description = `${durMins} dk • ${distKm} km • Otobandan uzak.`;
-         type = 'scenic';
-     }
+      const body = {
+          origin: { location: { latLng: { latitude: start.lat, longitude: start.lng } } },
+          destination: { location: { latLng: { latitude: end.lat, longitude: end.lng } } },
+          travelMode: 'TWO_WHEELER', // Moto specific!
+          routingPreference: 'TRAFFIC_AWARE',
+          computeAlternativeRoutes: mode === 'fastest', // Only ask alternatives for the main query
+          routeModifiers: modifiers,
+          languageCode: 'tr',
+          units: 'METRIC'
+      };
 
-     const steps: RouteStep[] = route.legs[0].steps ? route.legs[0].steps.map((s: any) => ({
-         maneuver: s.maneuver,
-         name: s.name,
-         duration: s.duration,
-         distance: s.distance,
-         instruction: getInstruction(s)
-     })) : [];
-
-     return {
-        type,
-        name,
-        coordinates: route.geometry.coordinates,
-        distance: route.distance,
-        duration: route.duration,
-        color,
-        tags,
-        description,
-        steps
-     };
+      const res = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+              'X-Goog-Api-Key': GOOGLE_API_KEY,
+              'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.description,routes.legs,routes.routeLabels'
+          },
+          body: JSON.stringify(body)
+      });
+      return res.json();
   };
 
   try {
-      const baseUrl = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson&steps=true`;
-      
-      // PARALLEL EXECUTION STRATEGY
-      // We fire 3 distinct requests to force OSRM to give us different paths.
-      const promises = [
-          // 1. FASTEST (Standard)
-          fetch(`${baseUrl}&alternatives=true`).then(r => r.json()).then(d => ({ type: 'fastest', data: d })),
-          
-          // 2. NO TOLLS (Explicitly avoid tolls)
-          fetch(`${baseUrl}&exclude=tolls`).then(r => r.json()).then(d => ({ type: 'toll_free', data: d })),
-          
-          // 3. SCENIC (Explicitly avoid motorways)
-          fetch(`${baseUrl}&exclude=motorway`).then(r => r.json()).then(d => ({ type: 'scenic', data: d }))
-      ];
+      // Execute 3 strategies in parallel
+      const results = await Promise.allSettled([
+          fetchRoute('fastest').then(d => ({ mode: 'fastest', data: d })),
+          fetchRoute('toll_free').then(d => ({ mode: 'toll_free', data: d })),
+          fetchRoute('scenic').then(d => ({ mode: 'scenic', data: d }))
+      ]);
 
-      const results = await Promise.allSettled(promises);
       const candidates: RouteAlternative[] = [];
 
-      // Helper to check for duplicates based on geometry similarity
-      const isDuplicate = (route: any) => {
-          return candidates.some(c => {
-              const distDiff = Math.abs(c.distance - route.distance);
-              const durDiff = Math.abs(c.duration - route.duration);
-              // Consider duplicate if length differs by less than 500m AND time by less than 2 mins
-              return distDiff < 500 && durDiff < 120;
-          });
+      const processGoogleRoute = (route: any, mode: string) => {
+           if (!route.polyline?.encodedPolyline) return;
+
+           const points = decodePolyline(route.polyline.encodedPolyline);
+           const distKm = (route.distanceMeters / 1000).toFixed(1);
+           const durMins = Math.round(parseInt(route.duration) / 60); // Google sends "360s" string
+
+           let name = "Rota";
+           let color = "#94a3b8";
+           let tags: string[] = [];
+           let description = "";
+           let type: 'fastest' | 'scenic' = 'fastest';
+
+           if (mode === 'fastest') {
+               name = "En Hızlı (Moto)";
+               color = "#3b82f6";
+               tags = ["Trafik", "Hızlı"];
+               description = `${durMins} dk • ${distKm} km • Trafik hesaba katıldı.`;
+               type = 'fastest';
+           } else if (mode === 'toll_free') {
+               name = "Ekonomik Rota";
+               color = "#f59e0b";
+               tags = ["Gişesiz", "Ucuz"];
+               description = `${durMins} dk • ${distKm} km • Ücretli geçiş yok.`;
+               type = 'fastest';
+           } else {
+               name = "Manzara / D-Yolu";
+               color = "#10b981";
+               tags = ["Virajlı", "Sakin"];
+               description = `${durMins} dk • ${distKm} km • Otobandan kaçınıldı.`;
+               type = 'scenic';
+           }
+
+           // Extract steps from legs
+           const steps: RouteStep[] = [];
+           route.legs?.forEach((leg: any) => {
+               leg.steps?.forEach((step: any) => {
+                   steps.push({
+                       maneuver: { location: [step.startLocation.latLng.latitude, step.startLocation.latLng.longitude], type: 'move' },
+                       name: "",
+                       duration: parseInt(step.staticDuration) || 0,
+                       distance: step.lengthMeters,
+                       instruction: step.navigationInstruction ? 
+                           (mapGoogleManeuver(step.navigationInstruction.maneuver) + ' ' + (step.navigationInstruction.instructions || '')) 
+                           : "İlerle"
+                   });
+               });
+           });
+
+           candidates.push({
+               type,
+               name,
+               coordinates: points,
+               distance: route.distanceMeters,
+               duration: parseInt(route.duration),
+               color,
+               tags,
+               description,
+               steps
+           });
       };
 
-      // Process results
-      for (const result of results) {
-          if (result.status === 'fulfilled') {
-              const { type, data } = result.value;
-              if (data && data.code === 'Ok' && data.routes && data.routes.length > 0) {
-                  // OSRM returns routes sorted by relevance. Usually route[0] is the best for that criteria.
-                  const primaryRoute = data.routes[0];
-                  
-                  if (!isDuplicate(primaryRoute)) {
-                      candidates.push(mapRoute(primaryRoute, type as any));
-                  }
-                  
-                  // Sometimes "Fastest" request actually returns a 2nd alternative in the same payload
-                  if (type === 'fastest' && data.routes.length > 1) {
-                      const secondary = data.routes[1];
-                      if (!isDuplicate(secondary)) {
-                          // If we found a secondary route in "Fastest", label it vaguely as Alternative
-                          const altRoute = mapRoute(secondary, 'toll_free'); 
-                          altRoute.name = "Alternatif Rota";
-                          altRoute.tags = ["Alternatif"];
-                          candidates.push(altRoute);
-                      }
-                  }
-              }
+      // Helper to avoid duplicates
+      const isDuplicate = (coords: [number, number][]) => {
+          if (candidates.length === 0) return false;
+          // Simple check: compare total points length and first/mid/last point
+          const existing = candidates[0].coordinates;
+          if (Math.abs(existing.length - coords.length) > 50) return false;
+          return false; // Assume distinct if length differs significantly
+      };
+
+      results.forEach(res => {
+          if (res.status === 'fulfilled' && res.value.data.routes) {
+              const { mode, data } = res.value;
+              data.routes.forEach((r: any) => processGoogleRoute(r, mode));
           }
-      }
+      });
 
-      if (candidates.length === 0) {
-          throw new Error("Hiçbir rota bulunamadı. Mesafe çok uzak olabilir.");
-      }
+      // Filter rough duplicates by distance/duration similarity
+      const uniqueCandidates = candidates.filter((v, i, a) => 
+          a.findIndex(t => (
+             Math.abs(t.distance - v.distance) < 500 && Math.abs(t.duration - v.duration) < 120
+          )) === i
+      );
 
-      // Sort: Fastest first, then Toll Free, then Scenic
-      const order = { 'fastest': 1, 'toll_free': 2, 'scenic': 3 };
-      // Note: We used mapped type names in mapRoute. Re-sorting might rely on matching types.
-      // Actually, let's just keep the discovery order but prioritizing Fastest if it exists.
+      if (uniqueCandidates.length === 0) throw new Error("Google Rota bulamadı.");
       
-      return candidates;
+      return uniqueCandidates.slice(0, 4); // Return max 4 cards
 
   } catch (e) {
-      console.error("Routing error", e);
+      console.error("Google Routing Error:", e);
       throw e;
   }
 };
 
 export const getElevationProfile = async (coordinates: [number, number][]): Promise<ElevationStats | null> => {
+    // Keeping Open-Meteo for Elevation to save Google API Costs (Elevation API is expensive)
     if (coordinates.length < 2) return null;
     const sampleSize = 50;
     const step = Math.ceil(coordinates.length / sampleSize);

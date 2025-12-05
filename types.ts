@@ -104,7 +104,7 @@ export interface RouteAlternative {
 }
 
 export interface RouteGeometry {
-  coordinates: [number, number][]; // [lng, lat] from OSRM
+  coordinates: [number, number][]; // [lng, lat] from OSRM/Google
   distance: number;
   duration: number;
   alternatives?: any[];
