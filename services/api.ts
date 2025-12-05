@@ -1,25 +1,32 @@
 import { LocationData, WeatherData, RouteAlternative, ElevationStats, RadioStation, RouteStep } from "../types";
 
-// Robust environment variable retrieval to handle different runtimes (Vite vs Sandbox)
-const getEnv = (key: string) => {
-    try {
-        if (typeof process !== 'undefined' && process.env?.[key]) {
-            return process.env[key];
-        }
-    } catch {}
-
-    try {
-        const meta = import.meta as any;
-        // Safely access meta.env using optional chaining or logical AND
-        if (meta && meta.env && meta.env[key]) {
-            return meta.env[key];
-        }
-    } catch {}
+// Extremely robust environment variable retrieval
+const getEnv = (key: string): string => {
+    let value = '';
     
-    return undefined;
+    // 1. Try Vite standard (import.meta.env)
+    try {
+        // @ts-ignore
+        if (import.meta && import.meta.env && import.meta.env[key]) {
+            // @ts-ignore
+            value = import.meta.env[key];
+        }
+    } catch (e) {}
+
+    // 2. Try Node/Process standard (process.env)
+    if (!value) {
+        try {
+            if (typeof process !== 'undefined' && process.env && process.env[key]) {
+                value = process.env[key];
+            }
+        } catch (e) {}
+    }
+
+    return value || '';
 };
 
 const GOOGLE_API_KEY = getEnv('VITE_GOOGLE_MAPS_KEY');
+export const IS_API_KEY_VALID = !!GOOGLE_API_KEY;
 
 // --- UTILS: Polyline Decoder ---
 // Decodes Google's encoded polyline algorithm into [lng, lat] array
@@ -54,7 +61,7 @@ const decodePolyline = (encoded: string): [number, number][] => {
     return points;
 };
 
-// --- RADIO BROWSER API (Kept as is) ---
+// --- RADIO BROWSER API ---
 export const getRadioStations = async (tag: string): Promise<RadioStation[]> => {
     try {
         const controller = new AbortController();
@@ -78,7 +85,6 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<string> 
         const data = await res.json();
         
         if (data.status === 'OK' && data.results?.[0]) {
-            // Try to find a meaningful short address
             const result = data.results[0];
             let neighborhood = "";
             let locality = "";
@@ -99,10 +105,14 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<string> 
 
 // --- GOOGLE PLACES SEARCH ---
 export const searchLocation = async (query: string): Promise<LocationData[]> => {
-  if (query.length < 3 || !GOOGLE_API_KEY) return [];
+  if (query.length < 3) return [];
+  
+  if (!GOOGLE_API_KEY) {
+      console.warn("Google API Key eksik. Arama yapılamıyor.");
+      return [];
+  }
 
   try {
-    // Using Places API (New) - Text Search
     const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
         method: 'POST',
         headers: {
@@ -135,7 +145,6 @@ export const searchLocation = async (query: string): Promise<LocationData[]> => 
 };
 
 // --- GOOGLE ROUTES API ---
-// We map Google maneuvers to our app's instruction format
 const mapGoogleManeuver = (maneuver: string): string => {
     const map: Record<string, string> = {
         'TURN_LEFT': 'Sola dön',
@@ -160,23 +169,22 @@ const mapGoogleManeuver = (maneuver: string): string => {
 
 export const getRouteAlternatives = async (start: LocationData, end: LocationData): Promise<RouteAlternative[]> => {
   if (!GOOGLE_API_KEY) {
-      alert("API Anahtarı Eksik! Google Maps API Key bulunamadı.");
-      throw new Error("Missing API Key");
+      throw new Error("API Anahtarı Eksik! Google Maps çalışmıyor.");
   }
 
   const fetchRoute = async (mode: 'fastest' | 'toll_free' | 'scenic') => {
       const modifiers: any = {
           avoidTolls: mode === 'toll_free',
-          avoidHighways: mode === 'scenic', // Google Proxy for "Scenic"
+          avoidHighways: mode === 'scenic',
           avoidFerries: false
       };
 
       const body = {
           origin: { location: { latLng: { latitude: start.lat, longitude: start.lng } } },
           destination: { location: { latLng: { latitude: end.lat, longitude: end.lng } } },
-          travelMode: 'TWO_WHEELER', // Moto specific!
+          travelMode: 'TWO_WHEELER', 
           routingPreference: 'TRAFFIC_AWARE',
-          computeAlternativeRoutes: mode === 'fastest', // Only ask alternatives for the main query
+          computeAlternativeRoutes: mode === 'fastest',
           routeModifiers: modifiers,
           languageCode: 'tr',
           units: 'METRIC'
@@ -195,7 +203,6 @@ export const getRouteAlternatives = async (start: LocationData, end: LocationDat
   };
 
   try {
-      // Execute 3 strategies in parallel
       const results = await Promise.allSettled([
           fetchRoute('fastest').then(d => ({ mode: 'fastest', data: d })),
           fetchRoute('toll_free').then(d => ({ mode: 'toll_free', data: d })),
@@ -209,7 +216,7 @@ export const getRouteAlternatives = async (start: LocationData, end: LocationDat
 
            const points = decodePolyline(route.polyline.encodedPolyline);
            const distKm = (route.distanceMeters / 1000).toFixed(1);
-           const durMins = Math.round(parseInt(route.duration) / 60); // Google sends "360s" string
+           const durMins = Math.round(parseInt(route.duration) / 60);
 
            let name = "Rota";
            let color = "#94a3b8";
@@ -237,7 +244,6 @@ export const getRouteAlternatives = async (start: LocationData, end: LocationDat
                type = 'scenic';
            }
 
-           // Extract steps from legs
            const steps: RouteStep[] = [];
            route.legs?.forEach((leg: any) => {
                leg.steps?.forEach((step: any) => {
@@ -266,15 +272,6 @@ export const getRouteAlternatives = async (start: LocationData, end: LocationDat
            });
       };
 
-      // Helper to avoid duplicates
-      const isDuplicate = (coords: [number, number][]) => {
-          if (candidates.length === 0) return false;
-          // Simple check: compare total points length and first/mid/last point
-          const existing = candidates[0].coordinates;
-          if (Math.abs(existing.length - coords.length) > 50) return false;
-          return false; // Assume distinct if length differs significantly
-      };
-
       results.forEach(res => {
           if (res.status === 'fulfilled' && res.value.data.routes) {
               const { mode, data } = res.value;
@@ -282,7 +279,6 @@ export const getRouteAlternatives = async (start: LocationData, end: LocationDat
           }
       });
 
-      // Filter rough duplicates by distance/duration similarity
       const uniqueCandidates = candidates.filter((v, i, a) => 
           a.findIndex(t => (
              Math.abs(t.distance - v.distance) < 500 && Math.abs(t.duration - v.duration) < 120
@@ -291,7 +287,7 @@ export const getRouteAlternatives = async (start: LocationData, end: LocationDat
 
       if (uniqueCandidates.length === 0) throw new Error("Google Rota bulamadı.");
       
-      return uniqueCandidates.slice(0, 4); // Return max 4 cards
+      return uniqueCandidates.slice(0, 4); 
 
   } catch (e) {
       console.error("Google Routing Error:", e);
@@ -300,7 +296,6 @@ export const getRouteAlternatives = async (start: LocationData, end: LocationDat
 };
 
 export const getElevationProfile = async (coordinates: [number, number][]): Promise<ElevationStats | null> => {
-    // Keeping Open-Meteo for Elevation to save Google API Costs (Elevation API is expensive)
     if (coordinates.length < 2) return null;
     const sampleSize = 50;
     const step = Math.ceil(coordinates.length / sampleSize);

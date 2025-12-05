@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Navigation, Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Zap, Droplets, Gauge, Thermometer, TrendingUp, ShieldCheck, Mountain, Compass, Timer, Activity, Locate, RotateCcw, Crosshair, ChevronsRight, Split, Target, MoveUpRight, MoveDownRight, Minus, Music, Volume2, Pause, Play, Radio } from 'lucide-react';
+import { MapPin, Navigation, Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Zap, Droplets, Gauge, Thermometer, TrendingUp, ShieldCheck, Mountain, Compass, Timer, Activity, Locate, RotateCcw, Crosshair, ChevronsRight, Split, Target, MoveUpRight, MoveDownRight, Minus, Music, Volume2, Pause, Play, Radio, AlertTriangle } from 'lucide-react';
 import { LocationData, WeatherData, RouteAlternative, ElevationStats, RadioStation } from './types';
-import { searchLocation, getRouteAlternatives, getWeatherForPoint, getElevationProfile, getRadioStations } from './services/api';
+import { searchLocation, getRouteAlternatives, getWeatherForPoint, getElevationProfile, getRadioStations, IS_API_KEY_VALID } from './services/api';
 
 // --- UTILS ---
 const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -286,6 +286,9 @@ const App: React.FC = () => {
   const [searchResults, setSearchResults] = useState<LocationData[]>([]);
   
   const [startLoc, setStartLoc] = useState<LocationData | null>(null);
+  const [locationStatus, setLocationStatus] = useState<'idle' | 'searching' | 'found' | 'error'>('searching');
+  const [locationErrorMsg, setLocationErrorMsg] = useState("");
+
   const [endLoc, setEndLoc] = useState<LocationData | null>(null);
   
   const [routeOptions, setRouteOptions] = useState<RouteAlternative[]>([]);
@@ -384,11 +387,25 @@ const App: React.FC = () => {
     }, 1000);
 
     if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-            const loc = { name: "Mevcut Konum", lat: pos.coords.latitude, lng: pos.coords.longitude, admin1: "GPS" };
-            setStartLoc(loc);
-            setUserPos([pos.coords.latitude, pos.coords.longitude]);
-        });
+        setLocationStatus('searching');
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const loc = { name: "Mevcut Konum", lat: pos.coords.latitude, lng: pos.coords.longitude, admin1: "GPS" };
+                setStartLoc(loc);
+                setUserPos([pos.coords.latitude, pos.coords.longitude]);
+                setLocationStatus('found');
+            },
+            (err) => {
+                console.error("Geolocation error:", err);
+                setLocationStatus('error');
+                let msg = "GPS Hatası";
+                if (err.code === 1) msg = "Konum İzni Reddedildi";
+                else if (err.code === 2) msg = "Konum Bulunamadı (GPS Kapalı?)";
+                else if (err.code === 3) msg = "Zaman Aşımı";
+                setLocationErrorMsg(msg);
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
 
         watchIdRef.current = navigator.geolocation.watchPosition(
             pos => {
@@ -416,8 +433,11 @@ const App: React.FC = () => {
                 }
             },
             err => console.warn(err),
-            { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+            { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
         );
+    } else {
+        setLocationStatus('error');
+        setLocationErrorMsg("Tarayıcı Desteklemiyor");
     }
     
     if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
@@ -469,13 +489,25 @@ const App: React.FC = () => {
   };
 
   const handleSearchRoutes = async () => {
-      if(!startLoc || !endLoc) return;
+      if (!startLoc) {
+          alert("Konum henüz bulunamadı. Lütfen GPS'in aktif olduğundan emin olun.");
+          return;
+      }
+      if (!endLoc) {
+          alert("Lütfen bir hedef seçin.");
+          return;
+      }
+      if (!IS_API_KEY_VALID) {
+          alert("Google Maps API Anahtarı eksik! Rota hesaplanamıyor.");
+          return;
+      }
+
       setIsLoading(true); setRouteOptions([]); setRadarPoints([]);
       try {
           const alts = await getRouteAlternatives(startLoc, endLoc);
           if (alts.length > 0) setRouteOptions(alts);
           else alert("Rota bulunamadı.");
-      } catch (err) { alert("Hata: " + err); } finally { setIsLoading(false); }
+      } catch (err: any) { alert("Hata: " + err.message); } finally { setIsLoading(false); }
   };
 
   const selectRoute = async (route: RouteAlternative) => {
@@ -510,6 +542,12 @@ const App: React.FC = () => {
         next5kmStats={next5kmStats}
       />
       
+      {!IS_API_KEY_VALID && (
+          <div className="bg-red-600/90 text-white text-xs font-bold text-center py-1 absolute top-0 w-full z-[100] flex items-center justify-center gap-2">
+              <AlertTriangle size={14} /> API ANAHTARI BULUNAMADI - HARİTALAR ÇALIŞMAZ
+          </div>
+      )}
+
       {isRerouting && (
           <div className="absolute top-24 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-2 rounded-full font-bold shadow-xl z-[60] animate-pulse flex items-center gap-2 border border-red-400">
               <RotateCcw className="animate-spin" size={20} /> ROTA YENİLENİYOR...
@@ -527,9 +565,15 @@ const App: React.FC = () => {
                    <div className="text-center mb-4"><h1 className="text-3xl font-black italic tracking-tighter text-white drop-shadow-lg">ROTA ANALİZİ</h1><p className="text-slate-500 text-sm mt-2">Mekan, AVM veya Benzinlik.</p></div>
                    <div className="space-y-4">
                        <div className="group relative opacity-70">
-                           <div className="absolute left-4 top-1/2 -translate-y-1/2 text-cyan-500"><MapPin /></div>
-                           <input disabled value="Mevcut Konum" className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl h-14 pl-14 pr-4 text-lg font-bold text-slate-400" />
-                           <div className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500 animate-pulse"><Crosshair size={20} /></div>
+                           <div className={`absolute left-4 top-1/2 -translate-y-1/2 ${locationStatus === 'found' ? 'text-emerald-500' : locationStatus === 'error' ? 'text-red-500' : 'text-cyan-500'}`}>
+                               {locationStatus === 'searching' ? <RotateCcw className="animate-spin" /> : locationStatus === 'error' ? <AlertTriangle /> : <MapPin />}
+                           </div>
+                           <input 
+                             disabled 
+                             value={locationStatus === 'searching' ? "Konum Bekleniyor..." : locationStatus === 'error' ? locationErrorMsg : "Mevcut Konum (GPS Aktif)"} 
+                             className={`w-full bg-slate-800/50 border rounded-2xl h-14 pl-14 pr-4 text-lg font-bold transition-all ${locationStatus === 'error' ? 'border-red-500/50 text-red-400' : 'border-slate-700 text-slate-400'}`} 
+                           />
+                           {locationStatus === 'found' && <div className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500 animate-pulse"><Crosshair size={20} /></div>}
                        </div>
                        
                        <div className="group relative">
