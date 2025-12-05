@@ -4,10 +4,10 @@ import { WeatherData, CoPilotAnalysis } from './types';
 import { getWeatherForPoint, reverseGeocode } from './services/api';
 
 // --- RADIO STATIONS (UPDATED: STABLE PLAYER SERVICES) ---
-// Removed Power FM, added Joy FM as reliable replacement
+// Replaced Fenomen with Power Türk as requested
 const RADIO_STATIONS = [
     { name: "Joy FM", url: "https://playerservices.streamtheworld.com/api/livestream-redirect/JOY_FM_SC" },
-    { name: "Fenomen", url: "https://listen.radyofenomen.com/fenomen/128/icecast.audio" },
+    { name: "Power Türk", url: "https://listen.powerapp.com.tr/powerturk/icecast.audio" },
     { name: "Metro FM", url: "https://playerservices.streamtheworld.com/api/livestream-redirect/METRO_FM_SC" },
     { name: "Virgin Radio", url: "https://playerservices.streamtheworld.com/api/livestream-redirect/VIRGIN_RADIO_SC" },
     { name: "Joy Turk", url: "https://playerservices.streamtheworld.com/api/livestream-redirect/JOY_TURK_SC" },
@@ -422,7 +422,22 @@ const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, radioState, maxLef
 
                 {/* RADIO CARD (REPLACES ALTITUDE) */}
                 <div onClick={() => onExpand('radio')} className={`${cardClass} border rounded-2xl p-4 flex flex-col relative overflow-hidden h-28 active:scale-95 cursor-pointer ${radioState.isPlaying ? 'border-cyan-500/50' : ''}`}>
-                    <div className={`absolute top-2 right-2 opacity-50 ${radioState.isPlaying ? 'text-cyan-500 animate-pulse' : ''}`}><Radio size={24} /></div>
+                    <div className="absolute top-2 right-2 z-20">
+                         {radioState.isPlaying ? (
+                             <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    radioState.stop();
+                                }}
+                                className="p-1.5 bg-rose-500 text-white rounded-full shadow-lg shadow-rose-500/40 hover:scale-110 transition-transform animate-in zoom-in"
+                             >
+                                <StopCircle size={18} fill="currentColor" />
+                             </button>
+                         ) : (
+                             <div className="opacity-50"><Radio size={24} /></div>
+                         )}
+                    </div>
+
                     <span className={`text-[9px] font-bold uppercase tracking-wider ${labelClass}`}>RADYO</span>
                     <div className="flex flex-col mt-auto">
                         <span className={`text-xl font-black tracking-tighter leading-none truncate ${radioState.isPlaying ? 'text-cyan-400 neon-text-cyan' : 'opacity-60'}`}>
@@ -936,7 +951,7 @@ const App: React.FC = () => {
             accuracy={accuracy}
             longitudinalG={longitudinalG}
             gForce={gForce}
-            radioState={{ isPlaying: radioPlaying, currentStation }}
+            radioState={{ isPlaying: radioPlaying, currentStation, stop: handleRadioStop }}
             isDark={isDark}
             onExpand={(type: string) => setExpandedView(type)}
         />
