@@ -3,7 +3,50 @@ import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, Ro
 import { WeatherData, CoPilotAnalysis } from './types';
 import { getWeatherForPoint, reverseGeocode } from './services/api';
 
-// --- UTILS ---
+// --- MATH UTILS ---
+const toRad = (deg: number) => deg * Math.PI / 180;
+
+// Calculates the "Apparent Wind" (The wind the rider feels)
+// combining Bike Velocity and True Wind Velocity vectors.
+const calculateApparentWind = (
+    bikeSpeedKmh: number, 
+    bikeHeading: number, 
+    windSpeedKmh: number, 
+    windDirectionFrom: number
+): number => {
+    if (bikeSpeedKmh < 5) return windSpeedKmh; // If stopped, you feel the true wind.
+
+    // 1. Vector of the "Induced Wind" (Headwind created by riding)
+    // It comes FROM the direction we are heading TO.
+    // Magnitude = Bike Speed.
+    // Direction = Bike Heading.
+    // We need X/Y components where 0 deg is North (Y axis).
+    // In Nav coordinates: X = sin(angle), Y = cos(angle).
+    // The "force" is pushing against us, so it flows towards (Heading + 180).
+    // Let's calculate the "Wind Flow Vector" relative to the ground.
+    
+    // Induced Wind Vector (Air moving relative to bike due to speed)
+    // Flow direction is opposite to heading (Heading + 180)
+    const inducedFlowDir = bikeHeading + 180;
+    const inducedX = bikeSpeedKmh * Math.sin(toRad(inducedFlowDir));
+    const inducedY = bikeSpeedKmh * Math.cos(toRad(inducedFlowDir));
+
+    // True Wind Vector (Meteorological)
+    // Data comes as "Blowing FROM". So Flow direction is "Direction + 180".
+    const trueFlowDir = windDirectionFrom + 180;
+    const trueX = windSpeedKmh * Math.sin(toRad(trueFlowDir));
+    const trueY = windSpeedKmh * Math.cos(toRad(trueFlowDir));
+
+    // Resultant Vector (Vector Sum)
+    const resX = inducedX + trueX;
+    const resY = inducedY + trueY;
+
+    // Magnitude
+    const apparentSpeed = Math.sqrt(resX * resX + resY * resY);
+    
+    return Math.round(apparentSpeed);
+};
+
 const getWeatherIcon = (code: number, size = 32) => {
     if (code === 0) return <Sun size={size} className="text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]" />;
     if (code <= 3) return <Cloud size={size} className="text-slate-400" />;
@@ -55,9 +98,8 @@ const analyzeConditions = (weather: WeatherData | null): CoPilotAnalysis => {
 
 // --- COMPONENTS ---
 
-// 1. Digital Speedometer (Centerpiece)
+// 1. Digital Speedometer
 const Speedometer = ({ speed }: { speed: number }) => {
-    // Dynamic color logic based on speed (visual thrill)
     let colorClass = "text-white";
     let glowClass = "bg-cyan-500/5";
     
@@ -76,33 +118,29 @@ const Speedometer = ({ speed }: { speed: number }) => {
     );
 };
 
-// 2. Lean Angle & G-Force Visualizer
+// 2. Lean Dashboard
 const LeanDashboard = ({ angle, maxLeft, maxRight, gForce, onReset }: { angle: number, maxLeft: number, maxRight: number, gForce: number, onReset: () => void }) => {
     const isLeft = angle < 0;
     const absAngle = Math.abs(angle);
     const barWidth = Math.min((absAngle / 50) * 100, 100);
     
-    // Lean Color Logic
     let colorClass = "bg-emerald-500";
     if (absAngle > 30) colorClass = "bg-amber-400";
     if (absAngle > 45) colorClass = "bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.8)]";
 
     return (
         <div className="w-full px-6 mb-4">
-            {/* Stats Row */}
             <div className="flex justify-between items-end mb-3 px-2">
                 <div className="text-center w-20">
                     <span className="text-[9px] text-slate-500 font-bold block mb-1">MAX SOL</span>
                     <span className="text-xl font-black text-slate-300 bg-slate-800/50 px-3 py-1 rounded-lg border border-slate-700/50">{Math.round(Math.abs(maxLeft))}°</span>
                 </div>
                 
-                {/* Center Control / G-Force */}
                 <div className="flex flex-col items-center cursor-pointer active:scale-95 transition-transform" onClick={onReset}>
                     <div className="flex items-baseline gap-1">
                         <span className="text-4xl font-black text-white italic tabular-nums">{Math.round(absAngle)}</span>
                         <span className="text-xl text-slate-500 italic">°</span>
                     </div>
-                    {/* G-Force Badge */}
                     <div className="mt-1 flex items-center gap-1 bg-slate-800/80 px-2 py-0.5 rounded text-[10px] font-bold text-cyan-400 border border-slate-700">
                         <Zap size={10} fill="currentColor" />
                         {gForce.toFixed(1)} G
@@ -115,7 +153,6 @@ const LeanDashboard = ({ angle, maxLeft, maxRight, gForce, onReset }: { angle: n
                 </div>
             </div>
             
-            {/* Lean Bars */}
             <div className="flex gap-1 h-5 w-full bg-slate-900/50 rounded-full border border-slate-800 p-1 backdrop-blur-sm">
                 <div className="flex-1 flex justify-end relative overflow-hidden rounded-l-full bg-slate-800/30">
                     <div className={`h-full transition-all duration-100 ease-out ${isLeft ? colorClass : 'bg-transparent'}`} style={{ width: isLeft ? `${barWidth}%` : '0%' }}></div>
@@ -129,15 +166,20 @@ const LeanDashboard = ({ angle, maxLeft, maxRight, gForce, onReset }: { angle: n
     );
 };
 
-// 3. Environment Grid
-const EnvGrid = ({ weather, analysis }: { weather: WeatherData | null, analysis: CoPilotAnalysis }) => {
-    // Check if rain probability is high (> 20%) or if it's currently raining (rain > 0)
+// 3. Environment Grid (Updated with Apparent Wind)
+const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading }: { weather: WeatherData | null, analysis: CoPilotAnalysis, bikeSpeed: number, bikeHeading: number }) => {
     const rainWarning = weather && (weather.rainProb > 20 || weather.rain > 0.1);
+    
+    // Calculate Apparent Wind (Bağıl Rüzgar)
+    const apparentWind = weather 
+        ? calculateApparentWind(bikeSpeed, bikeHeading, weather.windSpeed, weather.windDirection) 
+        : 0;
+    
+    const isMoving = bikeSpeed > 10;
 
     return (
         <div className="flex flex-col px-4 w-full mb-6 gap-3">
             
-            {/* RAIN WARNING BANNER - ONLY SHOWS IF RAIN EXPECTED */}
             {rainWarning && (
                 <div className="w-full bg-cyan-900/40 border border-cyan-500/50 rounded-xl p-3 flex items-center justify-center gap-3 animate-pulse shadow-[0_0_20px_rgba(6,182,212,0.3)]">
                     <Umbrella className="text-cyan-400 animate-bounce" size={24} />
@@ -149,11 +191,10 @@ const EnvGrid = ({ weather, analysis }: { weather: WeatherData | null, analysis:
             )}
 
             <div className="grid grid-cols-2 gap-3">
-                {/* Weather Card - RESTRUCTURED for Visibility */}
+                {/* Weather Card */}
                 <div className="bg-[#111827] border border-slate-800 rounded-2xl p-4 flex flex-col relative overflow-hidden shadow-lg h-full">
                     <div className="absolute top-2 right-2 opacity-30">{weather ? getWeatherIcon(weather.weatherCode, 32) : <Activity />}</div>
                     
-                    {/* Temperature Section */}
                     <div className="flex-1">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">SICAKLIK</span>
                         <div className="flex items-baseline gap-2 mt-0">
@@ -165,13 +206,27 @@ const EnvGrid = ({ weather, analysis }: { weather: WeatherData | null, analysis:
                         </div>
                     </div>
 
-                    {/* Wind Section - LARGER */}
+                    {/* Wind Section - DYNAMIC */}
                     <div className="mt-3 border-t border-slate-800/50 pt-2">
-                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1"><Wind size={10}/> RÜZGAR</span>
-                         <div className="flex items-end gap-1">
-                            <span className="text-3xl font-black text-white leading-none">{weather ? Math.round(weather.windSpeed) : '-'}</span>
-                            <span className="text-xs font-bold text-slate-400 mb-1">KM/S</span>
-                         </div>
+                        <div className="flex justify-between items-end">
+                            <div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1"><Wind size={10}/> RÜZGAR</span>
+                                <div className="flex items-end gap-1">
+                                    <span className="text-2xl font-black text-white leading-none">{weather ? Math.round(weather.windSpeed) : '-'}</span>
+                                    <span className="text-[9px] font-bold text-slate-400 mb-1">METEO</span>
+                                </div>
+                            </div>
+                            {/* Apparent Wind Display */}
+                            <div className={`text-right ${isMoving ? 'opacity-100' : 'opacity-40'} transition-opacity duration-500`}>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">BAĞIL</span>
+                                <div className="flex items-end gap-1 justify-end">
+                                    <span className={`text-3xl font-black leading-none ${apparentWind > 50 ? 'text-rose-500' : 'text-cyan-400'}`}>
+                                        {apparentWind}
+                                    </span>
+                                    <span className="text-[9px] font-bold text-slate-400 mb-1">KM/S</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -242,7 +297,7 @@ const App: React.FC = () => {
   const [gForce, setGForce] = useState(0);
   const [maxLeft, setMaxLeft] = useState(0);
   const [maxRight, setMaxRight] = useState(0);
-  const [heading, setHeading] = useState<number | null>(0);
+  const [heading, setHeading] = useState<number>(0); // Init with 0 to prevent NaN in math
   const [altitude, setAltitude] = useState<number | null>(0);
   const [accuracy, setAccuracy] = useState(0);
   
@@ -344,7 +399,7 @@ const App: React.FC = () => {
                 const { speed: spd, heading: hdg, altitude: alt, accuracy: acc, latitude, longitude } = pos.coords;
                 const kmh = spd ? spd * 3.6 : 0;
                 setSpeed(kmh < 2 ? 0 : kmh);
-                setHeading(hdg);
+                setHeading(hdg || 0); // Default to 0
                 setAltitude(alt);
                 setAccuracy(acc || 0);
 
@@ -426,7 +481,7 @@ const App: React.FC = () => {
         </div>
 
         {/* INFO CLUSTER */}
-        <EnvGrid weather={weather} analysis={analysis} />
+        <EnvGrid weather={weather} analysis={analysis} bikeSpeed={speed} bikeHeading={heading} />
 
         {/* FOOTER */}
         <FooterTelemetry heading={heading} altitude={altitude} locationName={locationName} accuracy={accuracy} />
