@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download, Settings, RefreshCw, CheckCircle2, Moon, Maximize2, X, Battery, BatteryCharging, Timer, TrendingUp, Shield, ShieldAlert, ShieldCheck, Bike } from 'lucide-react';
+import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download, Settings, RefreshCw, CheckCircle2, Moon, Maximize2, X, Battery, BatteryCharging, Timer, TrendingUp, Shield, ShieldAlert, ShieldCheck, Bike, Bluetooth, Smartphone } from 'lucide-react';
 import { WeatherData, CoPilotAnalysis } from './types';
 import { getWeatherForPoint, reverseGeocode } from './services/api';
 
@@ -70,7 +70,7 @@ const DetailOverlay = ({ type, data, onClose, theme }: any) => {
                 <h2 className="text-2xl font-black uppercase tracking-widest">
                     {type === 'speed' ? 'Sürüş Özeti' : 
                      type === 'weather' ? 'Hava Detayı' : 
-                     type === 'copilot' ? 'Taktiksel Analiz' : 'Yatış & G-Force'}
+                     type === 'copilot' ? 'Taktiksel Analiz' : 'Performans Telemetrisi'}
                 </h2>
                 <button onClick={(e) => { e.stopPropagation(); onClose(); }} className={`p-2 rounded-full ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
                     <X size={24} />
@@ -172,10 +172,49 @@ const DetailOverlay = ({ type, data, onClose, theme }: any) => {
                 )}
 
                 {type === 'lean' && (
-                    <div className="flex flex-col gap-4 h-full justify-center text-center">
-                        <div className="text-8xl font-black text-slate-300 opacity-20 rotate-90">((( )))</div>
-                        <p className="text-lg font-bold opacity-80">G-Force ve Yatış Geçmişi</p>
-                        <p className="text-sm opacity-50">Çok yakında bu ekranda detaylı viraj grafikleri ve frenleme G kuvveti analizi yer alacak.</p>
+                    <div className="flex flex-col gap-4">
+                        <div className="grid grid-cols-3 gap-3">
+                            {/* Braking G */}
+                            <div className={`p-3 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'} flex flex-col items-center justify-center`}>
+                                <div className="mb-2 p-2 rounded-full bg-rose-500/20">
+                                    <ArrowUp size={20} className="text-rose-500 rotate-180" />
+                                </div>
+                                <span className="text-[10px] font-bold uppercase opacity-60">Frenleme</span>
+                                <span className="text-2xl font-black text-rose-500">{data.maxBrakeG.toFixed(1)}G</span>
+                            </div>
+                             {/* Corner G */}
+                             <div className={`p-3 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'} flex flex-col items-center justify-center`}>
+                                <div className="mb-2 p-2 rounded-full bg-cyan-500/20">
+                                    <Activity size={20} className="text-cyan-500" />
+                                </div>
+                                <span className="text-[10px] font-bold uppercase opacity-60">Viraj</span>
+                                <span className="text-2xl font-black text-cyan-500">{data.maxCornerG.toFixed(1)}G</span>
+                            </div>
+                            {/* Accel G */}
+                            <div className={`p-3 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'} flex flex-col items-center justify-center`}>
+                                <div className="mb-2 p-2 rounded-full bg-emerald-500/20">
+                                    <ArrowUp size={20} className="text-emerald-500" />
+                                </div>
+                                <span className="text-[10px] font-bold uppercase opacity-60">İvmelenme</span>
+                                <span className="text-2xl font-black text-emerald-500">{data.maxAccelG.toFixed(1)}G</span>
+                            </div>
+                        </div>
+
+                        {/* Analysis Text */}
+                        <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-md'} space-y-4`}>
+                             <div className="flex gap-3">
+                                 <span className="text-rose-500 font-black whitespace-nowrap">Frenleme G:</span>
+                                 <p className="text-xs opacity-70">Fren yaparken oluşan öne yığılma kuvveti. 0.8G üzeri sert frenleme, 1.0G üzeri genellikle ABS sınırıdır.</p>
+                             </div>
+                             <div className="flex gap-3">
+                                 <span className="text-cyan-500 font-black whitespace-nowrap">Viraj G:</span>
+                                 <p className="text-xs opacity-70">Lastiklerin yana doğru tutunma kuvveti. Cadde lastikleriyle 1.0G üzeri risklidir, pist lastikleriyle 1.3G'ye çıkabilir.</p>
+                             </div>
+                             <div className="flex gap-3">
+                                 <span className="text-emerald-500 font-black whitespace-nowrap">Hızlanma G:</span>
+                                 <p className="text-xs opacity-70">Gaz açtığında seni geriye iten kuvvet. 0.5G üzeri, özellikle ıslak zeminde arka lastiğin kaymasına neden olabilir.</p>
+                             </div>
+                        </div>
                     </div>
                 )}
             </div>
@@ -223,7 +262,7 @@ const LeanDashboard = ({ angle, maxLeft, maxRight, gForce, onReset, isDark, onEx
     const barBgClass = isDark ? "bg-slate-800/30" : "bg-slate-200";
 
     return (
-        <div className="w-full px-6 mb-2 cursor-pointer" onClick={onExpand}>
+        <div className="w-full px-6 mb-4 cursor-pointer" onClick={onExpand}>
             <div className="flex justify-between items-end mb-3 px-2">
                 <div className="text-center w-20">
                     <span className="text-[9px] font-bold block mb-1 opacity-60">MAX SOL</span>
@@ -263,13 +302,12 @@ const LeanDashboard = ({ angle, maxLeft, maxRight, gForce, onReset, isDark, onEx
 const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, isDark, onExpand }: any) => {
     const rainWarning = weather && (weather.rainProb > 20 || weather.rain > 0.1);
     const apparentWind = weather ? calculateApparentWind(bikeSpeed, bikeHeading, weather.windSpeed, weather.windDirection) : 0;
-    const isMoving = bikeSpeed > 10;
-
+    
     const cardClass = isDark ? "bg-[#111827] border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900 shadow-md";
     const labelClass = isDark ? "text-slate-500" : "text-slate-500 font-semibold";
     
     return (
-        <div className="flex flex-col px-4 w-full mb-8 gap-4 mt-auto">
+        <div className="flex flex-col px-4 w-full mb-6 mt-auto gap-4">
             
             {rainWarning && (
                 <div className="w-full bg-cyan-900/40 border border-cyan-500/50 rounded-xl p-3 flex items-center justify-center gap-3 animate-pulse shadow-[0_0_20px_rgba(6,182,212,0.3)]">
@@ -385,20 +423,34 @@ const CalibrationModal = ({ isOpen, onClose, offset }: any) => {
     );
 }
 
-const DigitalClock = ({ isDark, toggleTheme }: { isDark: boolean, toggleTheme: () => void }) => {
+const DigitalClock = ({ isDark, toggleTheme, batteryLevel }: { isDark: boolean, toggleTheme: () => void, batteryLevel: number }) => {
     const [time, setTime] = useState(new Date());
     useEffect(() => {
         const t = setInterval(() => setTime(new Date()), 1000);
         return () => clearInterval(t);
     }, []);
     return (
-        <div className="flex flex-col items-end">
-            <div className={`text-xl font-black tracking-widest tabular-nums font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                {time.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+        <div className="flex items-center gap-4">
+             {/* Device Info (Fake BT & Real Battery) */}
+            <div className={`flex flex-col items-end ${isDark ? 'opacity-50' : 'opacity-70'}`}>
+                <div className="flex items-center gap-1">
+                    <Bluetooth size={12} className="text-cyan-500" />
+                    <span className="text-[10px] font-bold">AÇIK</span>
+                </div>
+                <div className="flex items-center gap-1">
+                    <div className="text-[10px] font-bold">{Math.round(batteryLevel)}%</div>
+                    <Battery size={12} className={batteryLevel < 20 ? 'text-rose-500' : 'text-slate-400'} />
+                </div>
             </div>
-            <div onClick={toggleTheme} className="flex items-center gap-1 cursor-pointer active:scale-90 transition-transform">
-                <span className="text-[9px] font-bold text-cyan-600 tracking-widest">MOTO ROTA</span>
-                {isDark ? <Sun size={12} className="text-amber-400" /> : <Moon size={12} className="text-slate-600" />}
+
+            <div className="flex flex-col items-end">
+                <div className={`text-xl font-black tracking-widest tabular-nums font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    {time.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                </div>
+                <div onClick={toggleTheme} className="flex items-center gap-1 cursor-pointer active:scale-90 transition-transform">
+                    <span className="text-[9px] font-bold text-cyan-600 tracking-widest">MOTO ROTA</span>
+                    {isDark ? <Sun size={12} className="text-amber-400" /> : <Moon size={12} className="text-slate-600" />}
+                </div>
             </div>
         </div>
     );
@@ -413,9 +465,14 @@ const App: React.FC = () => {
   
   const [leanAngle, setLeanAngle] = useState(0);
   const [gForce, setGForce] = useState(0);
+  
+  // Specific G-Forces
   const [maxLeft, setMaxLeft] = useState(0);
   const [maxRight, setMaxRight] = useState(0);
-  
+  const [maxAccelG, setMaxAccelG] = useState(0);
+  const [maxBrakeG, setMaxBrakeG] = useState(0);
+  const [maxCornerG, setMaxCornerG] = useState(0);
+
   const [gpsHeading, setGpsHeading] = useState<number | null>(null);
   const [deviceHeading, setDeviceHeading] = useState<number>(0);
   const [compassOffset, setCompassOffset] = useState<number>(() => parseInt(localStorage.getItem('compassOffset') || '0'));
@@ -426,18 +483,30 @@ const App: React.FC = () => {
   const [locationName, setLocationName] = useState<string>("");
   const [analysis, setAnalysis] = useState<CoPilotAnalysis>(analyzeConditions(null));
   const [gpsStatus, setGpsStatus] = useState<'searching' | 'ok' | 'error'>('searching');
+  const [batteryLevel, setBatteryLevel] = useState(100);
 
   // UI State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showCalibration, setShowCalibration] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const [expandedView, setExpandedView] = useState<string | null>(null); // 'speed', 'lean', 'weather', 'copilot'
+  const [expandedView, setExpandedView] = useState<string | null>(null); 
 
   const wakeLockRef = useRef<any>(null);
   const lastLocationUpdate = useRef<number>(0);
   const lastTimeRef = useRef<number>(Date.now());
+  const lastSpeedRef = useRef<number>(0);
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+
+  // Battery Status
+  useEffect(() => {
+    if ((navigator as any).getBattery) {
+        (navigator as any).getBattery().then((battery: any) => {
+            setBatteryLevel(battery.level * 100);
+            battery.addEventListener('levelchange', () => setBatteryLevel(battery.level * 100));
+        });
+    }
+  }, []);
 
   // Auto Calibration Logic
   useEffect(() => {
@@ -497,8 +566,35 @@ const App: React.FC = () => {
 
     const handleMotion = (e: DeviceMotionEvent) => {
         if (e.acceleration) {
-            const totalAccel = Math.sqrt((e.acceleration.x||0)**2 + (e.acceleration.y||0)**2 + (e.acceleration.z||0)**2);
-            setGForce(Math.abs(totalAccel / 9.8)); 
+            const x = e.acceleration.x || 0;
+            const y = e.acceleration.y || 0;
+            const z = e.acceleration.z || 0;
+            const totalAccel = Math.sqrt(x*x + y*y + z*z);
+            const currentG = Math.abs(totalAccel / 9.8);
+            
+            setGForce(currentG); 
+
+            // Track Specific G-Forces (Approximate logic)
+            // Assuming phone is mounted roughly vertical or flat, magnitude is the safest bet for 'Force'
+            // We use absolute values of components to guess specific forces
+            // Cornering G ≈ Lateral Acceleration (X-axis usually on landscape mounts, or Gamma lean)
+            // But lets use the lean angle context + current G for better 'Corner G' context if possible, 
+            // Or just use raw accelerometer component magnitude.
+            
+            // Note: This is a simplified estimation.
+            // Corner G is mostly horizontal force.
+            // Braking/Accel is longitudinal.
+            
+            // Simple Logic:
+            // If lean angle is high (>10), High G is likely Corner G.
+            // If lean angle is low (<10), High G is likely Braking or Accel.
+            
+            // Since we can't be sure of mount direction (portrait/landscape), we can try to infer:
+            // Usually Y is vertical in portrait. X is horizontal.
+            
+            // Let's use GPS Speed delta for Accel/Brake Gs to be orientation independent in the GPS loop below.
+            // Here we just track "Corner G" as lateral force if we trust X axis? 
+            // Let's stick to using Total G for Cornering when Leaning.
         }
     };
 
@@ -530,11 +626,29 @@ const App: React.FC = () => {
                 const timeDelta = (now - lastTimeRef.current) / 1000; // seconds
                 lastTimeRef.current = now;
 
+                // Accel/Brake G Calculation using GPS Speed (Orientation Independent)
+                // Delta V (m/s) = (Current Kmh - Last Kmh) / 3.6
+                // Accel (m/s^2) = Delta V / Delta T
+                // G = Accel / 9.81
+                if (timeDelta > 0) {
+                    const deltaV_ms = (safeKmh - lastSpeedRef.current) / 3.6;
+                    const accel_ms2 = deltaV_ms / timeDelta;
+                    const g = accel_ms2 / 9.81;
+                    
+                    if (g > 0) {
+                        // Accelerating
+                        if (g > maxAccelG) setMaxAccelG(g);
+                    } else {
+                        // Braking (negative g)
+                        const brakingG = Math.abs(g);
+                        if (brakingG > maxBrakeG) setMaxBrakeG(brakingG);
+                    }
+                }
+                lastSpeedRef.current = safeKmh;
+
                 setSpeed(safeKmh);
                 if (safeKmh > maxSpeed) setMaxSpeed(safeKmh);
                 if (safeKmh > 5) {
-                    // distance in km = speed(km/h) * time(h)
-                    // time(h) = timeDelta / 3600
                     const distDelta = safeKmh * (timeDelta / 3600);
                     setTripDistance(prev => prev + distDelta);
                 }
@@ -563,7 +677,14 @@ const App: React.FC = () => {
         window.removeEventListener('devicemotion', handleMotion);
         if (watchId) navigator.geolocation.clearWatch(watchId);
     };
-  }, [maxSpeed]);
+  }, [maxSpeed, maxAccelG, maxBrakeG]);
+
+  // Corner G Update based on Lean + Total G (Simple Approximation)
+  useEffect(() => {
+     if (Math.abs(leanAngle) > 15 && gForce > maxCornerG) {
+         setMaxCornerG(gForce);
+     }
+  }, [gForce, leanAngle, maxCornerG]);
 
   const isGpsHeadingUsed = speed > 5 && gpsHeading !== null && !isNaN(gpsHeading);
   const calibratedMagneticHeading = (deviceHeading + compassOffset + 360) % 360;
@@ -579,7 +700,10 @@ const App: React.FC = () => {
       avgSpeed: tripDistance > 0 ? 0 : 0, 
       weather,
       apparentWind: weather ? calculateApparentWind(speed, effectiveHeading, weather.windSpeed, weather.windDirection) : 0,
-      analysis // Pass analysis to expanded data
+      analysis,
+      maxAccelG,
+      maxBrakeG,
+      maxCornerG
   };
 
   return (
@@ -615,7 +739,7 @@ const App: React.FC = () => {
                  )}
              </div>
              
-             <DigitalClock isDark={isDark} toggleTheme={toggleTheme} />
+             <DigitalClock isDark={isDark} toggleTheme={toggleTheme} batteryLevel={batteryLevel} />
         </div>
 
         {/* MAIN DISPLAY */}
@@ -626,7 +750,7 @@ const App: React.FC = () => {
                 maxLeft={maxLeft} 
                 maxRight={maxRight}
                 gForce={gForce}
-                onReset={() => { setMaxLeft(0); setMaxRight(0); }}
+                onReset={() => { setMaxLeft(0); setMaxRight(0); setMaxAccelG(0); setMaxBrakeG(0); setMaxCornerG(0); }}
                 isDark={isDark}
                 onExpand={() => setExpandedView('lean')}
              />
@@ -651,6 +775,7 @@ const App: React.FC = () => {
             isGpsHeading={isGpsHeadingUsed}
             onOpenCalibration={() => setShowCalibration(true)}
             isDark={isDark}
+            theme={theme}
         />
 
     </div>
