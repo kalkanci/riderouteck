@@ -90,13 +90,13 @@ const DetailOverlay = ({ type, data, onClose, theme, radioHandlers }: any) => {
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className={`p-5 flex justify-between items-center shrink-0 border-b ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
-                    <h2 className="text-xl font-black uppercase tracking-wider flex items-center gap-2">
-                        {type === 'radio' && <Radio className="text-cyan-500" />}
-                        {type === 'speed' && <TrendingUp className="text-cyan-500" />}
-                        {type === 'weather' && <Cloud className="text-cyan-500" />}
-                        {type === 'copilot' && <ShieldCheck className="text-cyan-500" />}
-                        {type === 'lean' && <Activity className="text-cyan-500" />}
+                <div className={`p-4 flex justify-between items-center shrink-0 border-b ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+                    <h2 className="text-lg font-black uppercase tracking-wider flex items-center gap-2">
+                        {type === 'radio' && <Radio className="text-cyan-500" size={20} />}
+                        {type === 'speed' && <TrendingUp className="text-cyan-500" size={20} />}
+                        {type === 'weather' && <Cloud className="text-cyan-500" size={20} />}
+                        {type === 'copilot' && <ShieldCheck className="text-cyan-500" size={20} />}
+                        {type === 'lean' && <Activity className="text-cyan-500" size={20} />}
                         <span>
                             {type === 'speed' ? 'Sürüş Özeti' : 
                              type === 'weather' ? 'Hava Detayı' : 
@@ -126,23 +126,23 @@ const DetailOverlay = ({ type, data, onClose, theme, radioHandlers }: any) => {
                                         <button
                                             key={idx}
                                             onClick={() => radioHandlers.play(idx)}
-                                            className={`relative p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-3 transition-all active:scale-95 aspect-square
+                                            className={`relative p-3 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all active:scale-95 aspect-square
                                                 ${isActive 
                                                     ? 'border-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(6,182,212,0.2)]' 
                                                     : `border-transparent ${isDark ? 'bg-slate-800 hover:bg-slate-750' : 'bg-slate-50 hover:bg-slate-100'} border-slate-700/30`
                                                 }`}
                                         >
                                             {isActive && (
-                                                <span className="absolute top-3 right-3 flex h-3 w-3">
+                                                <span className="absolute top-2 right-2 flex h-2.5 w-2.5">
                                                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                                                  <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
+                                                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
                                                 </span>
                                             )}
                                             
-                                            <div className={`p-4 rounded-full transition-colors ${isActive ? 'bg-cyan-500 text-white' : 'bg-slate-700/30 text-slate-400'}`}>
-                                                <Music size={28} />
+                                            <div className={`p-3 rounded-full transition-colors ${isActive ? 'bg-cyan-500 text-white' : 'bg-slate-700/30 text-slate-400'}`}>
+                                                <Music size={24} />
                                             </div>
-                                            <span className={`text-sm font-black text-center leading-tight ${isActive ? 'text-cyan-400' : ''}`}>{station.name}</span>
+                                            <span className={`text-xs font-black text-center leading-tight ${isActive ? 'text-cyan-400' : ''}`}>{station.name}</span>
                                         </button>
                                     )
                                 })}
@@ -152,85 +152,85 @@ const DetailOverlay = ({ type, data, onClose, theme, radioHandlers }: any) => {
 
                     {type === 'speed' && (
                         <div className="space-y-4">
-                            <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+                            <div className={`p-5 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
                                 <div className="flex items-center gap-2 mb-2 opacity-70">
-                                    <TrendingUp size={20} className="text-cyan-500" />
+                                    <TrendingUp size={18} className="text-cyan-500" />
                                     <span className="text-xs font-bold uppercase">Maksimum Hız</span>
                                 </div>
-                                <div className="text-6xl font-black tabular-nums">{Math.round(data.maxSpeed)} <span className="text-xl">km/h</span></div>
+                                <div className="text-5xl font-black tabular-nums">{Math.round(data.maxSpeed)} <span className="text-lg">km/h</span></div>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-3">
                                 <div className={`p-4 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
                                     <div className="flex items-center gap-2 mb-2 opacity-70">
                                         <Timer size={16} className="text-amber-500" />
                                         <span className="text-[10px] font-bold uppercase">Yol</span>
                                     </div>
-                                    <div className="text-2xl font-black tabular-nums">{data.tripDistance.toFixed(1)} <span className="text-sm">km</span></div>
+                                    <div className="text-xl font-black tabular-nums">{data.tripDistance.toFixed(1)} <span className="text-xs">km</span></div>
                                 </div>
                                 <div className={`p-4 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
                                      <div className="flex items-center gap-2 mb-2 opacity-70">
                                         <Activity size={16} className="text-emerald-500" />
                                         <span className="text-[10px] font-bold uppercase">Ortalama</span>
                                     </div>
-                                    <div className="text-2xl font-black tabular-nums">{data.avgSpeed} <span className="text-sm">km/h</span></div>
+                                    <div className="text-xl font-black tabular-nums">{data.avgSpeed} <span className="text-xs">km/h</span></div>
                                 </div>
                             </div>
                         </div>
                     )}
 
                     {type === 'weather' && (
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-3">
                                 <div className={`p-4 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
-                                    <span className="text-xs font-bold opacity-60 block mb-1">HİSSEDİLEN</span>
-                                    <span className="text-4xl font-black">{Math.round(data.weather?.feelsLike || 0)}°</span>
+                                    <span className="text-[10px] font-bold opacity-60 block mb-1">HİSSEDİLEN</span>
+                                    <span className="text-3xl font-black">{Math.round(data.weather?.feelsLike || 0)}°</span>
                                 </div>
                                 <div className={`p-4 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
-                                    <span className="text-xs font-bold opacity-60 block mb-1">YAĞIŞ RİSKİ</span>
-                                    <span className="text-4xl font-black text-cyan-500">%{data.weather?.rainProb}</span>
+                                    <span className="text-[10px] font-bold opacity-60 block mb-1">YAĞIŞ RİSKİ</span>
+                                    <span className="text-3xl font-black text-cyan-500">%{data.weather?.rainProb}</span>
                                 </div>
                             </div>
-                            <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
-                                 <div className="flex items-center gap-2 mb-4 opacity-70">
-                                    <Wind size={24} />
-                                    <span className="text-sm font-bold uppercase">Rüzgar Analizi</span>
+                            <div className={`p-5 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+                                 <div className="flex items-center gap-2 mb-3 opacity-70">
+                                    <Wind size={20} />
+                                    <span className="text-xs font-bold uppercase">Rüzgar Analizi</span>
                                 </div>
-                                <div className="flex justify-between items-end border-b pb-4 border-dashed border-slate-700/50 mb-4">
-                                    <span>Gerçek Hız</span>
-                                    <span className="text-2xl font-bold">{Math.round(data.weather?.windSpeed || 0)} km/s</span>
+                                <div className="flex justify-between items-end border-b pb-3 border-dashed border-slate-700/50 mb-3">
+                                    <span className="text-sm">Gerçek Hız</span>
+                                    <span className="text-xl font-bold">{Math.round(data.weather?.windSpeed || 0)} km/s</span>
                                 </div>
                                 <div className="flex justify-between items-end">
                                     <span className="text-sm opacity-80">Sürüşte Hissedilen</span>
-                                    <span className={`text-3xl font-black ${data.apparentWind > 50 ? 'text-rose-500' : 'text-cyan-500'}`}>{data.apparentWind} km/s</span>
+                                    <span className={`text-2xl font-black ${data.apparentWind > 50 ? 'text-rose-500' : 'text-cyan-500'}`}>{data.apparentWind} km/s</span>
                                 </div>
                             </div>
                         </div>
                     )}
 
                     {type === 'copilot' && (
-                        <div className="flex flex-col gap-4">
-                            <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'} flex items-center gap-4`}>
-                                 {data.analysis.status === 'safe' ? <ShieldCheck size={48} className="text-emerald-500" /> : 
-                                  data.analysis.status === 'caution' ? <Shield size={48} className="text-amber-500" /> : 
-                                  <ShieldAlert size={48} className="text-rose-500" />}
+                        <div className="flex flex-col gap-3">
+                            <div className={`p-5 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'} flex items-center gap-4`}>
+                                 {data.analysis.status === 'safe' ? <ShieldCheck size={40} className="text-emerald-500" /> : 
+                                  data.analysis.status === 'caution' ? <Shield size={40} className="text-amber-500" /> : 
+                                  <ShieldAlert size={40} className="text-rose-500" />}
                                  <div>
-                                     <h3 className={`text-lg font-black italic ${data.analysis.color}`}>{data.analysis.roadCondition}</h3>
-                                     <p className="text-xs opacity-70 mt-1">{data.analysis.message}</p>
+                                     <h3 className={`text-base font-black italic ${data.analysis.color}`}>{data.analysis.roadCondition}</h3>
+                                     <p className="text-[10px] opacity-70 mt-1">{data.analysis.message}</p>
                                  </div>
                             </div>
 
-                            <div className={`p-6 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
-                                <div className="flex items-center gap-2 mb-4 opacity-70">
-                                    <Bike size={20} />
+                            <div className={`p-5 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+                                <div className="flex items-center gap-2 mb-3 opacity-70">
+                                    <Bike size={18} />
                                     <span className="text-xs font-bold uppercase">Sürüş Tavsiyeleri</span>
                                 </div>
-                                <ul className="space-y-3 text-sm">
+                                <ul className="space-y-2 text-xs">
                                     <li className="flex gap-3 items-start">
-                                        <span className="bg-cyan-500/20 text-cyan-500 px-2 py-0.5 rounded text-xs font-bold">1</span>
+                                        <span className="bg-cyan-500/20 text-cyan-500 px-1.5 py-0.5 rounded font-bold">1</span>
                                         <span>{data.weather?.temp < 15 ? "Lastikler soğuk olabilir, agresif yatıştan kaçın." : "Asfalt sıcaklığı ideal, lastik tutuşu yüksek."}</span>
                                     </li>
                                     <li className="flex gap-3 items-start">
-                                        <span className="bg-cyan-500/20 text-cyan-500 px-2 py-0.5 rounded text-xs font-bold">2</span>
+                                        <span className="bg-cyan-500/20 text-cyan-500 px-1.5 py-0.5 rounded font-bold">2</span>
                                         <span>{data.weather?.windSpeed > 20 ? "Rüzgar hamlelerine karşı depo ile bütünleş." : "Rüzgar stabil, konforlu sürüş."}</span>
                                     </li>
                                 </ul>
@@ -239,22 +239,22 @@ const DetailOverlay = ({ type, data, onClose, theme, radioHandlers }: any) => {
                     )}
 
                     {type === 'lean' && (
-                        <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-3">
                             <div className="grid grid-cols-3 gap-2">
                                 {/* Braking G */}
                                 <div className={`p-3 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'} flex flex-col items-center justify-center`}>
                                     <span className="text-[9px] font-bold uppercase opacity-60 mb-1">Fren</span>
-                                    <span className="text-xl font-black text-rose-500">{data.maxBrakeG.toFixed(1)}G</span>
+                                    <span className="text-lg font-black text-rose-500">{data.maxBrakeG.toFixed(1)}G</span>
                                 </div>
                                  {/* Corner G */}
                                  <div className={`p-3 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'} flex flex-col items-center justify-center`}>
                                     <span className="text-[9px] font-bold uppercase opacity-60 mb-1">Viraj</span>
-                                    <span className="text-xl font-black text-cyan-500">{data.maxCornerG.toFixed(1)}G</span>
+                                    <span className="text-lg font-black text-cyan-500">{data.maxCornerG.toFixed(1)}G</span>
                                 </div>
                                 {/* Accel G */}
                                 <div className={`p-3 rounded-2xl border ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-white shadow-sm'} flex flex-col items-center justify-center`}>
                                     <span className="text-[9px] font-bold uppercase opacity-60 mb-1">Gaz</span>
-                                    <span className="text-xl font-black text-emerald-500">{data.maxAccelG.toFixed(1)}G</span>
+                                    <span className="text-lg font-black text-emerald-500">{data.maxAccelG.toFixed(1)}G</span>
                                 </div>
                             </div>
                             
@@ -263,7 +263,7 @@ const DetailOverlay = ({ type, data, onClose, theme, radioHandlers }: any) => {
                                     <BarChart3 size={16} />
                                     <span className="text-xs font-bold uppercase">G-Kuvveti Bilgisi</span>
                                 </div>
-                                <p className="text-xs opacity-60 leading-relaxed">
+                                <p className="text-[10px] opacity-60 leading-relaxed">
                                     Motosiklet lastiklerinin yanal tutuş limiti genellikle 1.0G - 1.2G arasındadır. 0.8G üzeri değerler agresif sürüşe işaret eder.
                                 </p>
                              </div>
@@ -337,7 +337,7 @@ const DigitalClock = ({ isDark, toggleTheme, batteryLevel, isVoiceEnabled, toggl
     };
 
     return (
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
              {/* Device Info */}
             <div className={`flex flex-col items-end ${isDark ? 'opacity-50' : 'opacity-70'}`}>
                 <div 
@@ -348,7 +348,7 @@ const DigitalClock = ({ isDark, toggleTheme, batteryLevel, isVoiceEnabled, toggl
                     {btDeviceName ? (
                         <>
                             <Headphones size={12} className="text-cyan-500" />
-                            <span className="text-[10px] font-bold max-w-[60px] truncate">{btDeviceName}</span>
+                            <span className="text-[10px] font-bold max-w-[50px] truncate">{btDeviceName}</span>
                         </>
                     ) : (
                         <>
@@ -391,12 +391,13 @@ const Speedometer = ({ speed, onClick, isDark }: any) => {
     const textColor = isDark ? "text-white" : "text-slate-900";
     const subTextColor = isDark ? "text-slate-500" : "text-slate-400";
     return (
-        <div onClick={onClick} className="flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform z-10 py-10">
+        <div onClick={onClick} className="flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform z-10 py-4 sm:py-8">
             <div className="relative">
-                <div className={`text-[160px] leading-none font-black tracking-tighter tabular-nums ${textColor} drop-shadow-2xl`}>
+                {/* Responsive font size for speed */}
+                <div className={`text-[110px] sm:text-[150px] leading-none font-black tracking-tighter tabular-nums ${textColor} drop-shadow-2xl`}>
                     {Math.round(speed)}
                 </div>
-                <div className={`absolute -bottom-4 right-2 text-2xl font-black ${subTextColor} tracking-widest`}>
+                <div className={`absolute -bottom-2 sm:-bottom-4 right-2 text-lg sm:text-2xl font-black ${subTextColor} tracking-widest`}>
                     KM/H
                 </div>
             </div>
@@ -405,13 +406,18 @@ const Speedometer = ({ speed, onClick, isDark }: any) => {
 };
 
 const LeanDashboard = ({ angle, maxLeft, maxRight, gForce, onReset, isDark, onExpand }: any) => {
+    const isRelevant = Math.abs(angle) > 30 || Math.abs(maxLeft) > 30 || Math.abs(maxRight) > 30;
+    
+    // VISIBILITY: Returns null if not relevant (completely hidden), no space taken
+    if (!isRelevant) return null;
+
     const textColor = isDark ? "text-white" : "text-slate-900";
     const borderColor = isDark ? "border-slate-800" : "border-slate-200";
 
     return (
-        <div className="w-full max-w-sm px-6 pb-6 flex flex-col items-center gap-4">
-            {/* Visual Lean Indicator */}
-            <div className="relative w-64 h-8 rounded-full bg-slate-800/50 backdrop-blur overflow-hidden border border-white/10">
+        <div className="w-full max-w-sm px-4 pb-4 flex flex-col items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            {/* Visual Lean Indicator - Compact height */}
+            <div className="relative w-56 sm:w-64 h-6 rounded-full bg-slate-800/50 backdrop-blur overflow-hidden border border-white/10">
                 <div 
                     className="absolute top-0 bottom-0 w-2 bg-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.8)] transition-all duration-100 ease-out rounded-full"
                     style={{ 
@@ -422,26 +428,20 @@ const LeanDashboard = ({ angle, maxLeft, maxRight, gForce, onReset, isDark, onEx
                 <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-white/20 -translate-x-1/2" />
             </div>
 
-            <div className="w-full grid grid-cols-3 gap-3">
-                <div className={`p-3 rounded-2xl border ${borderColor} ${isDark ? 'bg-slate-900/80' : 'bg-white/80'} backdrop-blur flex flex-col items-center`}>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase">SOL MAX</span>
-                    <span className={`text-2xl font-black ${textColor}`}>{Math.abs(Math.round(maxLeft))}°</span>
+            <div className="w-full grid grid-cols-3 gap-2">
+                <div className={`p-2 rounded-xl border ${borderColor} ${isDark ? 'bg-slate-900/80' : 'bg-white/80'} backdrop-blur flex flex-col items-center`}>
+                    <span className="text-[9px] font-bold text-slate-500 uppercase">SOL MAX</span>
+                    <span className={`text-lg font-black ${textColor}`}>{Math.abs(Math.round(maxLeft))}°</span>
                 </div>
-                <div onClick={onExpand} className={`p-3 rounded-2xl border ${borderColor} ${isDark ? 'bg-slate-800' : 'bg-slate-100'} flex flex-col items-center justify-center cursor-pointer active:scale-95`}>
-                     <RotateCcw size={20} className="text-cyan-500 mb-1" />
-                     <span className={`text-xl font-black ${textColor}`}>{Math.abs(Math.round(angle))}°</span>
+                <div onClick={onExpand} className={`p-2 rounded-xl border ${borderColor} ${isDark ? 'bg-slate-800' : 'bg-slate-100'} flex flex-col items-center justify-center cursor-pointer active:scale-95`}>
+                     <RotateCcw size={16} className="text-cyan-500 mb-0.5" />
+                     <span className={`text-base font-black ${textColor}`}>{Math.abs(Math.round(angle))}°</span>
                 </div>
-                <div className={`p-3 rounded-2xl border ${borderColor} ${isDark ? 'bg-slate-900/80' : 'bg-white/80'} backdrop-blur flex flex-col items-center`}>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase">SAĞ MAX</span>
-                    <span className={`text-2xl font-black ${textColor}`}>{Math.round(maxRight)}°</span>
+                <div className={`p-2 rounded-xl border ${borderColor} ${isDark ? 'bg-slate-900/80' : 'bg-white/80'} backdrop-blur flex flex-col items-center`}>
+                    <span className="text-[9px] font-bold text-slate-500 uppercase">SAĞ MAX</span>
+                    <span className={`text-lg font-black ${textColor}`}>{Math.round(maxRight)}°</span>
                 </div>
             </div>
-             <button 
-                onClick={(e) => { e.stopPropagation(); onReset(); }}
-                className="text-xs font-bold text-slate-500 hover:text-cyan-400 transition-colors py-2 flex items-center gap-1"
-            >
-                <RefreshCw size={12} /> SIFIRLA
-            </button>
         </div>
     );
 };
@@ -451,9 +451,9 @@ const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, altitude, tripTime
     const textMain = isDark ? "text-white" : "text-slate-900";
     
     const WindArrow = ({ dir }: {dir: number}) => (
-        <div className="relative w-8 h-8 flex items-center justify-center">
+        <div className="relative w-6 h-6 flex items-center justify-center">
             <Navigation 
-                size={24} 
+                size={20} 
                 className={isDark ? "text-slate-400" : "text-slate-600"} 
                 style={{ transform: `rotate(${dir}deg)` }} 
             />
@@ -461,48 +461,51 @@ const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, altitude, tripTime
     );
 
     return (
-        <div className="grid grid-cols-2 gap-3 w-full px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] shrink-0 max-w-lg mx-auto">
-            <div onClick={() => onExpand('copilot')} className={`p-4 rounded-3xl border ${cardBg} flex flex-col justify-between aspect-[4/3] relative overflow-hidden active:scale-95 transition-transform`}>
+        <div className="grid grid-cols-2 gap-2 w-full px-3 pb-[max(1rem,env(safe-area-inset-bottom))] shrink-0 max-w-lg mx-auto">
+            <div onClick={() => onExpand('copilot')} className={`p-3 rounded-2xl border ${cardBg} flex flex-col justify-between h-28 relative overflow-hidden active:scale-95 transition-transform`}>
                 <div className="flex justify-between items-start z-10">
                     <div className="flex flex-col">
-                        <span className="text-[10px] font-black tracking-widest opacity-50 uppercase">COPILOT</span>
-                        <span className={`text-lg font-black leading-tight ${analysis.color}`}>
+                        <span className="text-[9px] font-black tracking-widest opacity-50 uppercase">COPILOT</span>
+                        <span className={`text-base font-black leading-tight ${analysis.color}`}>
                             {analysis.status === 'safe' ? 'GÜVENLİ' : analysis.status === 'caution' ? 'DİKKATLİ OL' : 'RİSKLİ'}
                         </span>
                     </div>
-                    {analysis.status === 'safe' ? <ShieldCheck className="text-emerald-500" size={24} /> : analysis.status === 'caution' ? <Shield className="text-amber-500" size={24} /> : <ShieldAlert className="text-rose-500" size={24} />}
+                    {analysis.status === 'safe' ? <ShieldCheck className="text-emerald-500" size={20} /> : analysis.status === 'caution' ? <Shield className="text-amber-500" size={20} /> : <ShieldAlert className="text-rose-500" size={20} />}
                 </div>
-                <div className="z-10 mt-2">
-                    <p className={`text-xs font-bold leading-snug opacity-80 line-clamp-2 ${textMain}`}>{analysis.message}</p>
+                <div className="z-10 mt-1">
+                    <p className={`text-[10px] font-bold leading-snug opacity-80 line-clamp-2 ${textMain}`}>{analysis.message}</p>
                 </div>
-                 <div className={`absolute -right-4 -bottom-4 opacity-5 pointer-events-none`}><Shield size={80} /></div>
+                 <div className={`absolute -right-4 -bottom-4 opacity-5 pointer-events-none`}><Shield size={60} /></div>
             </div>
-            <div onClick={() => onExpand('weather')} className={`p-4 rounded-3xl border ${cardBg} flex flex-col justify-between aspect-[4/3] active:scale-95 transition-transform relative overflow-hidden`}>
+
+            <div onClick={() => onExpand('weather')} className={`p-3 rounded-2xl border ${cardBg} flex flex-col justify-between h-28 active:scale-95 transition-transform relative overflow-hidden`}>
                  <div className="flex justify-between items-start z-10">
                     <div className="flex flex-col">
-                        <span className="text-[10px] font-black tracking-widest opacity-50 uppercase">HAVA</span>
-                        <div className="flex items-center gap-1"><span className={`text-3xl font-black ${textMain}`}>{Math.round(weather?.temp || 0)}°</span></div>
+                        <span className="text-[9px] font-black tracking-widest opacity-50 uppercase">HAVA</span>
+                        <div className="flex items-center gap-1"><span className={`text-2xl font-black ${textMain}`}>{Math.round(weather?.temp || 0)}°</span></div>
                     </div>
-                    {getWeatherIcon(weather?.weatherCode || 0, 28, isDark)}
+                    {getWeatherIcon(weather?.weatherCode || 0, 24, isDark)}
                 </div>
                 <div className="flex items-end justify-between z-10">
-                     <div className="flex flex-col"><span className="text-[10px] font-bold opacity-60">RÜZGAR</span><span className={`text-sm font-black ${textMain}`}>{Math.round(weather?.windSpeed || 0)} km/s</span></div>
+                     <div className="flex flex-col"><span className="text-[9px] font-bold opacity-60">RÜZGAR</span><span className={`text-xs font-black ${textMain}`}>{Math.round(weather?.windSpeed || 0)} km/s</span></div>
                      <WindArrow dir={(weather?.windDirection || 0) - (bikeHeading || 0) + 180} />
                 </div>
             </div>
-            <div onClick={() => onExpand('radio')} className={`p-4 rounded-3xl border ${cardBg} flex flex-col justify-between aspect-[4/3] active:scale-95 transition-transform relative overflow-hidden group`}>
+
+            <div onClick={() => onExpand('radio')} className={`p-3 rounded-2xl border ${cardBg} flex flex-col justify-between h-28 active:scale-95 transition-transform relative overflow-hidden group`}>
                 <div className="flex justify-between items-start z-10">
-                    <span className="text-[10px] font-black tracking-widest opacity-50 uppercase">RADYO</span>
-                    {radioState.isPlaying ? <Volume2 className="text-cyan-500 animate-pulse" size={20} /> : <Radio className="opacity-40" size={20} />}
+                    <span className="text-[9px] font-black tracking-widest opacity-50 uppercase">RADYO</span>
+                    {radioState.isPlaying ? <Volume2 className="text-cyan-500 animate-pulse" size={18} /> : <Radio className="opacity-40" size={18} />}
                 </div>
                 <div className="z-10">
-                    {radioState.isPlaying ? (<><div className="text-xs font-bold text-cyan-500 mb-1">ÇALIYOR</div><div className={`text-sm font-black leading-tight line-clamp-1 ${textMain}`}>{RADIO_STATIONS[radioState.currentStation].name}</div></>) : (<div className="flex items-center justify-center h-full pb-4 opacity-40 font-bold text-xs">KAPALI</div>)}
+                    {radioState.isPlaying ? (<><div className="text-[10px] font-bold text-cyan-500 mb-0.5">ÇALIYOR</div><div className={`text-xs font-black leading-tight line-clamp-1 ${textMain}`}>{RADIO_STATIONS[radioState.currentStation].name}</div></>) : (<div className="flex items-center justify-center h-full pb-3 opacity-40 font-bold text-[10px]">KAPALI</div>)}
                 </div>
             </div>
-            <div onClick={() => onExpand('speed')} className={`p-4 rounded-3xl border ${cardBg} flex flex-col justify-between aspect-[4/3] active:scale-95 transition-transform`}>
-                <div className="flex justify-between items-start"><span className="text-[10px] font-black tracking-widest opacity-50 uppercase">İRTİFA</span><Mountain size={20} className="opacity-40" /></div>
-                <div className="flex items-baseline gap-1"><span className={`text-2xl font-black ${textMain}`}>{Math.round(altitude || 0)}</span><span className="text-xs font-bold opacity-50">m</span></div>
-                <div className="w-full bg-slate-200/20 rounded-full h-1.5 overflow-hidden mt-2"><div className="h-full bg-emerald-500 w-1/2"></div></div>
+
+            <div onClick={() => onExpand('speed')} className={`p-3 rounded-2xl border ${cardBg} flex flex-col justify-between h-28 active:scale-95 transition-transform`}>
+                <div className="flex justify-between items-start"><span className="text-[9px] font-black tracking-widest opacity-50 uppercase">İRTİFA</span><Mountain size={18} className="opacity-40" /></div>
+                <div className="flex items-baseline gap-1"><span className={`text-xl font-black ${textMain}`}>{Math.round(altitude || 0)}</span><span className="text-[10px] font-bold opacity-50">m</span></div>
+                <div className="w-full bg-slate-200/20 rounded-full h-1 overflow-hidden mt-1"><div className="h-full bg-emerald-500 w-1/2"></div></div>
             </div>
         </div>
     );
