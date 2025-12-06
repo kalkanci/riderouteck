@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download, Settings, RefreshCw, CheckCircle2, Moon, Maximize2, X, Battery, BatteryCharging, Timer, TrendingUp, Shield, ShieldAlert, ShieldCheck, Bike, Bluetooth, Smartphone, Radio, Play, Pause, SkipForward, Music, Headphones, Crosshair, Move, Volume2, StopCircle, BarChart3, RadioReceiver } from 'lucide-react';
+import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download, Settings, RefreshCw, CheckCircle2, Moon, Maximize2, X, Battery, BatteryCharging, Timer, TrendingUp, Shield, ShieldAlert, ShieldCheck, Bike, Bluetooth, Smartphone, Radio, Play, Pause, SkipForward, Music, Headphones, Crosshair, Move, Volume2, VolumeX, StopCircle, BarChart3, RadioReceiver, Mic } from 'lucide-react';
 import { WeatherData, CoPilotAnalysis } from './types';
 import { getWeatherForPoint, reverseGeocode } from './services/api';
 
 // --- RADIO STATIONS ---
 // Updated with StreamTheWorld (Karnaval) & Fenomen MP3 streams for maximum browser compatibility.
-// These endpoints provide standard audio streams that work without HLS.js.
 const RADIO_STATIONS = [
     { name: "Süper FM", url: "https://playerservices.streamtheworld.com/api/livestream-redirect/SUPER_FM_SC" },
     { name: "Joy Türk", url: "https://playerservices.streamtheworld.com/api/livestream-redirect/JOY_TURK_SC" },
@@ -59,16 +58,16 @@ const analyzeConditions = (weather: WeatherData | null): CoPilotAnalysis => {
     let score = 10;
     let msgs: string[] = [];
     
-    if (weather.rainProb > 60 || weather.rain > 1.0) { score -= 5; msgs.push("Islak Zemin"); }
-    else if (weather.rainProb > 30) { score -= 2; msgs.push("Yağmur Riski"); }
-    if (weather.windSpeed > 40) { score -= 4; msgs.push("Şiddetli Rüzgar"); }
+    if (weather.rainProb > 60 || weather.rain > 1.0) { score -= 5; msgs.push("Zemin Islak"); }
+    else if (weather.rainProb > 30) { score -= 2; msgs.push("Yağmur Başlayabilir"); }
+    if (weather.windSpeed > 40) { score -= 4; msgs.push("Şiddetli Yan Rüzgar"); }
     else if (weather.windSpeed > 25) { score -= 2; msgs.push("Rüzgarlı"); }
-    if (weather.temp < 5) { score -= 3; msgs.push("Gizli Buzlanma?"); }
-    else if (weather.temp > 35) { score -= 1; msgs.push("Sıcak Asfalt"); }
+    if (weather.temp < 5) { score -= 3; msgs.push("Gizli Buzlanma Riski"); }
+    else if (weather.temp > 35) { score -= 1; msgs.push("Asfalt Kayganlaşabilir"); }
 
-    if (score >= 9) return { status: 'safe', message: "Koşullar Mükemmel. Gazla.", roadCondition: "Kuru & Yüksek Tutuş", color: "text-emerald-500" };
+    if (score >= 9) return { status: 'safe', message: "Yol Açık, Keyfini Çıkar.", roadCondition: "Zemin Mükemmel", color: "text-emerald-500" };
     if (score >= 5) return { status: 'caution', message: msgs.join(", "), roadCondition: "Dikkatli Sür", color: "text-amber-500" };
-    return { status: 'danger', message: msgs.join(" + ") || "Tehlikeli Koşullar", roadCondition: "Zemin Riski Yüksek", color: "text-rose-600" };
+    return { status: 'danger', message: msgs.join(" ve ") || "Tehlikeli Koşullar", roadCondition: "Yavaşla", color: "text-rose-600" };
 };
 
 // --- SUB-COMPONENTS ---
@@ -276,166 +275,6 @@ const DetailOverlay = ({ type, data, onClose, theme, radioHandlers }: any) => {
     );
 };
 
-
-const Speedometer = ({ speed, onClick, isDark }: { speed: number, onClick: () => void, isDark: boolean }) => {
-    let colorClass = isDark ? "text-white" : "text-slate-900";
-    let glowClass = isDark ? "bg-cyan-500/5" : "bg-cyan-500/0";
-    
-    if (speed > 90) { 
-        colorClass = isDark ? "text-white" : "text-slate-900"; 
-        glowClass = isDark ? "bg-amber-500/10" : "";
-    }
-    if (speed > 130) { 
-        colorClass = "text-rose-500"; 
-        glowClass = "bg-rose-600/20"; 
-    }
-
-    return (
-        <div onClick={onClick} className="flex flex-col items-center justify-center relative py-6 transition-colors duration-500 cursor-pointer active:scale-95 transform">
-            <div className={`absolute inset-0 blur-[80px] rounded-full transition-all duration-700 ${glowClass}`}></div>
-            <div className={`text-8xl sm:text-[9rem] font-black italic tracking-tighter leading-none drop-shadow-sm tabular-nums z-10 transition-colors duration-300 ${colorClass}`}>
-                {Math.round(speed)}
-            </div>
-            <div className="text-xl font-bold text-cyan-500 tracking-[0.3em] mt-2 z-10 opacity-80 flex items-center gap-2">
-                KM/H <Maximize2 size={12} className="opacity-50" />
-            </div>
-        </div>
-    );
-};
-
-const LeanDashboard = ({ angle, maxLeft, maxRight, gForce, onReset, isDark, onExpand }: any) => {
-    // VISIBILITY LOGIC: Only show if angle > 30 OR historic max > 30 (so you can see your record when stopped)
-    const isRelevant = Math.abs(angle) > 30 || Math.abs(maxLeft) > 30 || Math.abs(maxRight) > 30;
-    
-    // If not relevant, don't render anything to keep the UI clean
-    if (!isRelevant) return <div className="h-4 w-full"></div>;
-
-    const isLeft = angle < 0;
-    const absAngle = Math.abs(angle);
-    const barWidth = Math.min((absAngle / 50) * 100, 100);
-    
-    let colorClass = "bg-emerald-500";
-    if (absAngle > 30) colorClass = "bg-amber-500";
-    if (absAngle > 45) colorClass = "bg-rose-500";
-
-    const boxClass = isDark ? "bg-slate-800/50 border-slate-700/50 text-slate-300" : "bg-white border-slate-200 text-slate-700 shadow-sm";
-    const barBgClass = isDark ? "bg-slate-800/30" : "bg-slate-200";
-
-    return (
-        <div className="w-full px-6 mb-4 cursor-pointer animate-in fade-in slide-in-from-bottom-4 duration-500" onClick={onExpand}>
-            <div className="flex justify-between items-end mb-3 px-2">
-                <div className="text-center w-20">
-                    <span className="text-[9px] font-bold block mb-1 opacity-60">MAX SOL</span>
-                    <span className={`text-xl font-black px-3 py-1 rounded-lg border ${boxClass}`}>{Math.round(Math.abs(maxLeft))}°</span>
-                </div>
-                
-                <div className="flex flex-col items-center active:scale-95 transition-transform">
-                    <div className={`flex items-baseline gap-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                        <span className="text-4xl font-black italic tabular-nums">{Math.round(absAngle)}</span>
-                        <span className="text-xl opacity-50 italic">°</span>
-                    </div>
-                    <div className={`mt-1 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold text-cyan-600 border ${isDark ? 'bg-slate-800/80 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
-                        <Zap size={10} fill="currentColor" />
-                        {gForce.toFixed(1)} G
-                    </div>
-                </div>
-
-                <div className="text-center w-20">
-                    <span className="text-[9px] font-bold block mb-1 opacity-60">MAX SAĞ</span>
-                    <span className={`text-xl font-black px-3 py-1 rounded-lg border ${boxClass}`}>{Math.round(maxRight)}°</span>
-                </div>
-            </div>
-            
-            <div className={`flex gap-1 h-5 w-full rounded-full border p-1 backdrop-blur-sm ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-100 border-slate-200'}`}>
-                <div className={`flex-1 flex justify-end relative overflow-hidden rounded-l-full ${barBgClass}`}>
-                    <div className={`h-full transition-all duration-100 ease-out ${isLeft ? colorClass : 'bg-transparent'}`} style={{ width: isLeft ? `${barWidth}%` : '0%' }}></div>
-                </div>
-                <div className="w-0.5 bg-slate-400 h-full rounded-full opacity-30"></div>
-                <div className={`flex-1 flex justify-start relative overflow-hidden rounded-r-full ${barBgClass}`}>
-                     <div className={`h-full transition-all duration-100 ease-out ${!isLeft ? colorClass : 'bg-transparent'}`} style={{ width: !isLeft ? `${barWidth}%` : '0%' }}></div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, radioState, maxLeft, maxRight, longitudinalG, gForce, isDark, onExpand }: any) => {
-    const apparentWind = weather ? calculateApparentWind(bikeSpeed, bikeHeading, weather.windSpeed, weather.windDirection) : 0;
-    
-    const cardClass = isDark ? "bg-[#111827] border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900 shadow-md";
-    const labelClass = isDark ? "text-slate-500" : "text-slate-500 font-semibold";
-    const cardinalDir = getCardinalDirection(bikeHeading || 0);
-    
-    // Logic for G-Monitor Status
-    let gStatus = "SABİT";
-    let gColor = "text-slate-500";
-    let gIcon = <Activity size={24} />;
-    
-    if (longitudinalG < -0.2) { gStatus = "FRENLEME"; gColor = "text-rose-500"; gIcon = <ArrowUp size={24} className="rotate-180 text-rose-500" />; }
-    else if (longitudinalG > 0.2) { gStatus = "HIZLANMA"; gColor = "text-emerald-500"; gIcon = <ArrowUp size={24} className="text-emerald-500" />; }
-    else if (gForce > 0.3) { gStatus = "VİRAJ"; gColor = "text-cyan-500"; gIcon = <RotateCcw size={24} className="text-cyan-500" />; }
-
-    return (
-        <div className="flex flex-col px-4 w-full mb-6 mt-auto gap-4 pb-8">
-            <div className="grid grid-cols-2 gap-4">
-                {/* WEATHER CARD */}
-                <div onClick={() => onExpand('weather')} className={`${cardClass} border rounded-2xl p-4 flex flex-col relative overflow-hidden h-28 active:scale-95 transition-transform cursor-pointer`}>
-                    <div className="absolute top-2 right-2 opacity-30">{weather ? getWeatherIcon(weather.weatherCode, 24, isDark) : <Activity size={24}/>}</div>
-                    
-                    <div className="flex-1 flex flex-col justify-center">
-                        <span className={`text-[9px] font-bold uppercase tracking-wider ${labelClass}`}>HAVA</span>
-                        <div className="flex items-baseline gap-1 mt-1">
-                            <span className="text-3xl font-black tracking-tighter leading-none">{weather ? Math.round(weather.temp) : '--'}°</span>
-                            <span className="text-[10px] opacity-60">{weather ? Math.round(weather.windSpeed) : '-'} km/s</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* CO-PILOT CARD */}
-                <div onClick={() => onExpand('copilot')} className={`${cardClass} border rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden h-28 active:scale-95 cursor-pointer ${analysis.status === 'danger' ? 'border-rose-500/50 bg-rose-500/10' : analysis.status === 'caution' ? 'border-amber-500/50 bg-amber-500/10' : ''}`}>
-                    <span className={`text-[9px] font-bold uppercase tracking-wider ${labelClass}`}>DURUM</span>
-                    <div className="mt-1 z-10 relative flex-1 flex flex-col justify-center">
-                        <div className={`text-sm font-black leading-tight italic ${analysis.color}`}>{analysis.roadCondition}</div>
-                        <div className={`text-[9px] font-bold mt-1 leading-tight opacity-70 truncate ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{analysis.message}</div>
-                    </div>
-                </div>
-
-                {/* RADIO CARD */}
-                <div onClick={() => onExpand('radio')} className={`${cardClass} border rounded-2xl p-4 flex flex-col relative overflow-hidden h-28 active:scale-95 cursor-pointer ${radioState.isPlaying ? 'border-cyan-500/50' : ''}`}>
-                    <div className="absolute top-2 right-2 z-20">
-                         {/* Removed small stop button from here, main interface now handles it better */}
-                         <div className="opacity-50"><Radio size={24} /></div>
-                    </div>
-
-                    <span className={`text-[9px] font-bold uppercase tracking-wider ${labelClass}`}>RADYO</span>
-                    <div className="flex flex-col mt-auto">
-                        <span className={`text-xl font-black tracking-tighter leading-none truncate ${radioState.isPlaying ? 'text-cyan-400 neon-text-cyan' : 'opacity-60'}`}>
-                            {radioState.isPlaying ? RADIO_STATIONS[radioState.currentStation].name : 'KAPALI'}
-                        </span>
-                        <span className="text-[10px] opacity-60 font-bold mt-1">{radioState.isPlaying ? 'ÇALIYOR' : 'DOKUN SEÇ'}</span>
-                    </div>
-                </div>
-
-                {/* G-MONITOR CARD */}
-                <div onClick={() => onExpand('lean')} className={`${cardClass} border rounded-2xl p-4 flex flex-col relative overflow-hidden h-28 active:scale-95 cursor-pointer`}>
-                     <div className="absolute top-2 right-2 opacity-30 animate-pulse">
-                         {gIcon}
-                     </div>
-                     <span className={`text-[9px] font-bold uppercase tracking-wider ${labelClass}`}>G-MONİTÖR</span>
-                     
-                     <div className="flex flex-col mt-auto">
-                        <div className="flex items-baseline gap-1">
-                            <span className="text-3xl font-black tracking-tighter leading-none">{gForce.toFixed(2)}</span>
-                            <span className="text-xs font-bold opacity-60">G</span>
-                        </div>
-                        <span className={`text-[10px] font-black tracking-widest mt-1 ${gColor}`}>{gStatus}</span>
-                     </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
 const CalibrationModal = ({ isOpen, onClose, offset }: any) => {
     if (!isOpen) return null;
     return (
@@ -463,7 +302,7 @@ const CalibrationModal = ({ isOpen, onClose, offset }: any) => {
     );
 }
 
-const DigitalClock = ({ isDark, toggleTheme, batteryLevel }: { isDark: boolean, toggleTheme: () => void, batteryLevel: number }) => {
+const DigitalClock = ({ isDark, toggleTheme, batteryLevel, isVoiceEnabled, toggleVoice }: any) => {
     const [time, setTime] = useState(new Date());
     const [btDeviceName, setBtDeviceName] = useState<string | null>(() => localStorage.getItem('lastBtDevice'));
 
@@ -524,6 +363,15 @@ const DigitalClock = ({ isDark, toggleTheme, batteryLevel }: { isDark: boolean, 
                 </div>
             </div>
 
+            {/* Voice Toggle */}
+            <button 
+                onClick={toggleVoice} 
+                className={`p-2 rounded-full transition-colors active:scale-90 ${isVoiceEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-500'}`}
+                title="Sesli Asistan"
+            >
+                {isVoiceEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+            </button>
+
             <div className="flex flex-col items-end">
                 <div className={`text-xl font-black tracking-widest tabular-nums font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>
                     {time.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
@@ -532,6 +380,129 @@ const DigitalClock = ({ isDark, toggleTheme, batteryLevel }: { isDark: boolean, 
                     <span className="text-[9px] font-bold text-cyan-600 tracking-widest">MOTO ROTA</span>
                     {isDark ? <Sun size={12} className="text-amber-400" /> : <Moon size={12} className="text-slate-600" />}
                 </div>
+            </div>
+        </div>
+    );
+};
+
+// --- NEW COMPONENTS ---
+
+const Speedometer = ({ speed, onClick, isDark }: any) => {
+    const textColor = isDark ? "text-white" : "text-slate-900";
+    const subTextColor = isDark ? "text-slate-500" : "text-slate-400";
+    return (
+        <div onClick={onClick} className="flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform z-10 py-10">
+            <div className="relative">
+                <div className={`text-[160px] leading-none font-black tracking-tighter tabular-nums ${textColor} drop-shadow-2xl`}>
+                    {Math.round(speed)}
+                </div>
+                <div className={`absolute -bottom-4 right-2 text-2xl font-black ${subTextColor} tracking-widest`}>
+                    KM/H
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const LeanDashboard = ({ angle, maxLeft, maxRight, gForce, onReset, isDark, onExpand }: any) => {
+    const textColor = isDark ? "text-white" : "text-slate-900";
+    const borderColor = isDark ? "border-slate-800" : "border-slate-200";
+
+    return (
+        <div className="w-full max-w-sm px-6 pb-6 flex flex-col items-center gap-4">
+            {/* Visual Lean Indicator */}
+            <div className="relative w-64 h-8 rounded-full bg-slate-800/50 backdrop-blur overflow-hidden border border-white/10">
+                <div 
+                    className="absolute top-0 bottom-0 w-2 bg-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.8)] transition-all duration-100 ease-out rounded-full"
+                    style={{ 
+                        left: `${50 + (angle * 1.5)}%`, 
+                        transform: 'translateX(-50%)'
+                    }}
+                />
+                <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-white/20 -translate-x-1/2" />
+            </div>
+
+            <div className="w-full grid grid-cols-3 gap-3">
+                <div className={`p-3 rounded-2xl border ${borderColor} ${isDark ? 'bg-slate-900/80' : 'bg-white/80'} backdrop-blur flex flex-col items-center`}>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase">SOL MAX</span>
+                    <span className={`text-2xl font-black ${textColor}`}>{Math.abs(Math.round(maxLeft))}°</span>
+                </div>
+                <div onClick={onExpand} className={`p-3 rounded-2xl border ${borderColor} ${isDark ? 'bg-slate-800' : 'bg-slate-100'} flex flex-col items-center justify-center cursor-pointer active:scale-95`}>
+                     <RotateCcw size={20} className="text-cyan-500 mb-1" />
+                     <span className={`text-xl font-black ${textColor}`}>{Math.abs(Math.round(angle))}°</span>
+                </div>
+                <div className={`p-3 rounded-2xl border ${borderColor} ${isDark ? 'bg-slate-900/80' : 'bg-white/80'} backdrop-blur flex flex-col items-center`}>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase">SAĞ MAX</span>
+                    <span className={`text-2xl font-black ${textColor}`}>{Math.round(maxRight)}°</span>
+                </div>
+            </div>
+             <button 
+                onClick={(e) => { e.stopPropagation(); onReset(); }}
+                className="text-xs font-bold text-slate-500 hover:text-cyan-400 transition-colors py-2 flex items-center gap-1"
+            >
+                <RefreshCw size={12} /> SIFIRLA
+            </button>
+        </div>
+    );
+};
+
+const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, altitude, tripTime, tripDistance, maxLeft, maxRight, accuracy, longitudinalG, gForce, radioState, isDark, onExpand }: any) => {
+    const cardBg = isDark ? "bg-[#111827] border-slate-800" : "bg-white border-slate-200 shadow-sm";
+    const textMain = isDark ? "text-white" : "text-slate-900";
+    
+    const WindArrow = ({ dir }: {dir: number}) => (
+        <div className="relative w-8 h-8 flex items-center justify-center">
+            <Navigation 
+                size={24} 
+                className={isDark ? "text-slate-400" : "text-slate-600"} 
+                style={{ transform: `rotate(${dir}deg)` }} 
+            />
+        </div>
+    );
+
+    return (
+        <div className="grid grid-cols-2 gap-3 w-full px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] shrink-0 max-w-lg mx-auto">
+            <div onClick={() => onExpand('copilot')} className={`p-4 rounded-3xl border ${cardBg} flex flex-col justify-between aspect-[4/3] relative overflow-hidden active:scale-95 transition-transform`}>
+                <div className="flex justify-between items-start z-10">
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-black tracking-widest opacity-50 uppercase">COPILOT</span>
+                        <span className={`text-lg font-black leading-tight ${analysis.color}`}>
+                            {analysis.status === 'safe' ? 'GÜVENLİ' : analysis.status === 'caution' ? 'DİKKATLİ OL' : 'RİSKLİ'}
+                        </span>
+                    </div>
+                    {analysis.status === 'safe' ? <ShieldCheck className="text-emerald-500" size={24} /> : analysis.status === 'caution' ? <Shield className="text-amber-500" size={24} /> : <ShieldAlert className="text-rose-500" size={24} />}
+                </div>
+                <div className="z-10 mt-2">
+                    <p className={`text-xs font-bold leading-snug opacity-80 line-clamp-2 ${textMain}`}>{analysis.message}</p>
+                </div>
+                 <div className={`absolute -right-4 -bottom-4 opacity-5 pointer-events-none`}><Shield size={80} /></div>
+            </div>
+            <div onClick={() => onExpand('weather')} className={`p-4 rounded-3xl border ${cardBg} flex flex-col justify-between aspect-[4/3] active:scale-95 transition-transform relative overflow-hidden`}>
+                 <div className="flex justify-between items-start z-10">
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-black tracking-widest opacity-50 uppercase">HAVA</span>
+                        <div className="flex items-center gap-1"><span className={`text-3xl font-black ${textMain}`}>{Math.round(weather?.temp || 0)}°</span></div>
+                    </div>
+                    {getWeatherIcon(weather?.weatherCode || 0, 28, isDark)}
+                </div>
+                <div className="flex items-end justify-between z-10">
+                     <div className="flex flex-col"><span className="text-[10px] font-bold opacity-60">RÜZGAR</span><span className={`text-sm font-black ${textMain}`}>{Math.round(weather?.windSpeed || 0)} km/s</span></div>
+                     <WindArrow dir={(weather?.windDirection || 0) - (bikeHeading || 0) + 180} />
+                </div>
+            </div>
+            <div onClick={() => onExpand('radio')} className={`p-4 rounded-3xl border ${cardBg} flex flex-col justify-between aspect-[4/3] active:scale-95 transition-transform relative overflow-hidden group`}>
+                <div className="flex justify-between items-start z-10">
+                    <span className="text-[10px] font-black tracking-widest opacity-50 uppercase">RADYO</span>
+                    {radioState.isPlaying ? <Volume2 className="text-cyan-500 animate-pulse" size={20} /> : <Radio className="opacity-40" size={20} />}
+                </div>
+                <div className="z-10">
+                    {radioState.isPlaying ? (<><div className="text-xs font-bold text-cyan-500 mb-1">ÇALIYOR</div><div className={`text-sm font-black leading-tight line-clamp-1 ${textMain}`}>{RADIO_STATIONS[radioState.currentStation].name}</div></>) : (<div className="flex items-center justify-center h-full pb-4 opacity-40 font-bold text-xs">KAPALI</div>)}
+                </div>
+            </div>
+            <div onClick={() => onExpand('speed')} className={`p-4 rounded-3xl border ${cardBg} flex flex-col justify-between aspect-[4/3] active:scale-95 transition-transform`}>
+                <div className="flex justify-between items-start"><span className="text-[10px] font-black tracking-widest opacity-50 uppercase">İRTİFA</span><Mountain size={20} className="opacity-40" /></div>
+                <div className="flex items-baseline gap-1"><span className={`text-2xl font-black ${textMain}`}>{Math.round(altitude || 0)}</span><span className="text-xs font-bold opacity-50">m</span></div>
+                <div className="w-full bg-slate-200/20 rounded-full h-1.5 overflow-hidden mt-2"><div className="h-full bg-emerald-500 w-1/2"></div></div>
             </div>
         </div>
     );
@@ -579,6 +550,7 @@ const App: React.FC = () => {
   const [showCalibration, setShowCalibration] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [expandedView, setExpandedView] = useState<string | null>(null); 
+  const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
 
   const wakeLockRef = useRef<any>(null);
   const lastLocationUpdate = useRef<number>(0);
@@ -586,6 +558,30 @@ const App: React.FC = () => {
   const lastSpeedRef = useRef<number>(0);
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+
+  // NEW: Voice Assistant Logic
+  const speak = (text: string) => {
+      if (!isVoiceEnabled || !('speechSynthesis' in window)) return;
+      
+      // Cancel existing speech to avoid queue buildup
+      window.speechSynthesis.cancel();
+      
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'tr-TR';
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+  };
+
+  // Announce dangerous conditions
+  useEffect(() => {
+      if (analysis.status === 'danger' && isVoiceEnabled) {
+          speak(`Dikkat. ${analysis.message}. ${analysis.roadCondition}`);
+      } else if (analysis.status === 'caution' && isVoiceEnabled && Math.random() > 0.7) {
+          // Occasional caution warnings
+          speak(`Dikkat. ${analysis.message}`);
+      }
+  }, [analysis.status, analysis.message, isVoiceEnabled]);
 
   // Radio Logic: Effect for playback
   useEffect(() => {
@@ -889,7 +885,17 @@ const App: React.FC = () => {
                  </div>
              </div>
              
-             <DigitalClock isDark={isDark} toggleTheme={toggleTheme} batteryLevel={batteryLevel} />
+             <DigitalClock 
+                 isDark={isDark} 
+                 toggleTheme={toggleTheme} 
+                 batteryLevel={batteryLevel} 
+                 isVoiceEnabled={isVoiceEnabled} 
+                 toggleVoice={() => {
+                     const next = !isVoiceEnabled;
+                     setIsVoiceEnabled(next);
+                     if(next) speak("Sesli asistan aktif.");
+                 }}
+            />
         </div>
 
         {/* ACTIVE RADIO CONTROL - MAIN PAGE - NEW ADDITION */}
@@ -962,7 +968,13 @@ const App: React.FC = () => {
             gForce={gForce}
             radioState={{ isPlaying: radioPlaying, currentStation, stop: handleRadioStop }}
             isDark={isDark}
-            onExpand={(type: string) => setExpandedView(type)}
+            onExpand={(type: string) => {
+                setExpandedView(type);
+                // Trigger voice explanation if Copilot is clicked and voice is enabled
+                if(type === 'copilot' && isVoiceEnabled) {
+                    speak(`${analysis.message}. ${analysis.roadCondition}`);
+                }
+            }}
         />
 
     </div>
