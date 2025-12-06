@@ -388,17 +388,120 @@ const DigitalClock = ({ isDark, toggleTheme, batteryLevel, isVoiceEnabled, toggl
 // --- NEW COMPONENTS ---
 
 const Speedometer = ({ speed, onClick, isDark }: any) => {
+    // VISUAL CONSTANTS
+    const maxGaugeSpeed = 240; // Visual limit for the bar
+    const radius = 120;
+    const stroke = 12;
+    const normalizedRadius = radius - stroke * 2;
+    const circumference = normalizedRadius * 2 * Math.PI;
+    
+    // We want a 240-degree arc (approx 2/3 circle), leaving the bottom open
+    // A full circle is 360 deg. 240 deg is 240/360 = 0.666
+    const arcLength = circumference * 0.70; 
+    const strokeDashoffset = arcLength - (Math.min(speed, maxGaugeSpeed) / maxGaugeSpeed) * arcLength;
+    
+    // Rotation to center the opening at the bottom
+    // 360 - 252 (approx arc) / 2 = rotation offset... 
+    // Let's just rotate 135deg to start from bottom left.
+    
+    // Dynamic Color Calculation
+    let color = "#22d3ee"; // Cyan default
+    let glowColor = "rgba(34, 211, 238, 0.4)";
+    
+    if (speed > 50) { color = "#10b981"; glowColor = "rgba(16, 185, 129, 0.4)"; } // Green
+    if (speed > 90) { color = "#f59e0b"; glowColor = "rgba(245, 158, 11, 0.4)"; } // Orange
+    if (speed > 130) { color = "#ef4444"; glowColor = "rgba(239, 68, 68, 0.6)"; } // Red
+
     const textColor = isDark ? "text-white" : "text-slate-900";
-    const subTextColor = isDark ? "text-slate-500" : "text-slate-400";
+    const tickCount = 40;
+    const ticks = Array.from({ length: tickCount }).map((_, i) => i);
+
     return (
-        <div onClick={onClick} className="flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform z-10 py-4 sm:py-8">
-            <div className="relative">
-                {/* Responsive font size for speed */}
-                <div className={`text-[110px] sm:text-[150px] leading-none font-black tracking-tighter tabular-nums ${textColor} drop-shadow-2xl`}>
+        <div onClick={onClick} className="relative flex items-center justify-center cursor-pointer active:scale-95 transition-transform z-10 w-72 h-72 sm:w-80 sm:h-80 select-none">
+            
+            {/* SVG GAUGE LAYER */}
+            <svg
+                height="100%"
+                width="100%"
+                viewBox="0 0 300 300"
+                className="absolute inset-0 rotate-[144deg]" // Rotate to open at bottom
+            >
+                 {/* Track Background */}
+                <circle
+                    stroke={isDark ? "#1e293b" : "#e2e8f0"}
+                    strokeWidth={stroke}
+                    fill="transparent"
+                    r={normalizedRadius}
+                    cx="150"
+                    cy="150"
+                    strokeDasharray={`${arcLength} ${circumference}`}
+                    strokeLinecap="round"
+                />
+                
+                {/* Progress Bar with Glow */}
+                <circle
+                    stroke={color}
+                    strokeWidth={stroke}
+                    fill="transparent"
+                    r={normalizedRadius}
+                    cx="150"
+                    cy="150"
+                    style={{ 
+                        strokeDasharray: `${arcLength} ${circumference}`, 
+                        strokeDashoffset,
+                        transition: "stroke-dashoffset 0.3s ease-out, stroke 0.5s ease"
+                    }}
+                    strokeLinecap="round"
+                    filter="url(#glow)"
+                />
+                
+                {/* Defs for Glow */}
+                <defs>
+                    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feGaussianBlur stdDeviation="4" result="coloredBlur" />
+                        <feMerge>
+                            <feMergeNode in="coloredBlur" />
+                            <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                    </filter>
+                </defs>
+            </svg>
+            
+            {/* TICK MARKS LAYER (React mapped divs for easier rotation) */}
+            <div className="absolute inset-0 rounded-full" style={{ transform: 'rotate(144deg)' }}> {/* Match SVG rotation */}
+                 {ticks.map(i => {
+                     const deg = (i / (tickCount - 1)) * 252; // 252 degree spread (matches the arc roughly)
+                     const isMajor = i % 5 === 0;
+                     return (
+                         <div 
+                            key={i}
+                            className={`absolute top-0 left-1/2 -translate-x-1/2 origin-bottom h-full pt-4 transition-colors duration-500`}
+                            style={{ transform: `rotate(${deg}deg)` }}
+                         >
+                             <div 
+                                className={`w-[2px] ${isMajor ? (isDark ? 'bg-slate-500' : 'bg-slate-400') : (isDark ? 'bg-slate-700' : 'bg-slate-200')} ${isMajor ? 'h-3' : 'h-1.5'}`}
+                             ></div>
+                         </div>
+                     )
+                 })}
+            </div>
+
+            {/* CENTER DIGITAL DISPLAY */}
+            <div className="relative flex flex-col items-center justify-center z-20 mt-4">
+                 {/* Neon Glow Background behind text */}
+                <div 
+                    className="absolute inset-0 blur-3xl opacity-30 transition-colors duration-500"
+                    style={{ backgroundColor: speed > 10 ? color : 'transparent' }}
+                ></div>
+
+                <div className={`text-[90px] sm:text-[110px] leading-none font-black tracking-tighter tabular-nums ${textColor} drop-shadow-2xl transition-colors duration-300 relative z-10`}>
                     {Math.round(speed)}
                 </div>
-                <div className={`absolute -bottom-2 sm:-bottom-4 right-2 text-lg sm:text-2xl font-black ${subTextColor} tracking-widest`}>
-                    KM/H
+                
+                <div className="flex items-center gap-2 mt-1 z-10">
+                    <div className={`h-1.5 w-1.5 rounded-full ${speed > 0 ? 'animate-pulse' : ''}`} style={{ backgroundColor: color }}></div>
+                    <span className={`text-xl font-black ${isDark ? 'text-slate-500' : 'text-slate-400'} tracking-[0.2em]`}>KM/H</span>
+                    <div className={`h-1.5 w-1.5 rounded-full ${speed > 0 ? 'animate-pulse' : ''}`} style={{ backgroundColor: color }}></div>
                 </div>
             </div>
         </div>
