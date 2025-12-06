@@ -1,0 +1,14 @@
+{
+  "appId": "com.motorota.app",
+  "appName": "MotoRota",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0
+    }
+  }
+}

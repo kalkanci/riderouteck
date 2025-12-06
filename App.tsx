@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download, Settings, RefreshCw, CheckCircle2, Moon, Maximize2, X, Battery, BatteryCharging, Timer, TrendingUp, Shield, ShieldAlert, ShieldCheck, Bike, Bluetooth, Smartphone, Radio, Play, Pause, SkipForward, Music, Headphones, Crosshair, Move, Volume2, StopCircle, BarChart3 } from 'lucide-react';
+import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download, Settings, RefreshCw, CheckCircle2, Moon, Maximize2, X, Battery, BatteryCharging, Timer, TrendingUp, Shield, ShieldAlert, ShieldCheck, Bike, Bluetooth, Smartphone, Radio, Play, Pause, SkipForward, Music, Headphones, Crosshair, Move, Volume2, StopCircle, BarChart3, RadioReceiver } from 'lucide-react';
 import { WeatherData, CoPilotAnalysis } from './types';
 import { getWeatherForPoint, reverseGeocode } from './services/api';
 
-// --- RADIO STATIONS (UPDATED: STABLE PLAYER SERVICES) ---
-// Replaced Fenomen with Power Türk as requested
+// --- RADIO STATIONS ---
+// Updated with StreamTheWorld (Karnaval) & Fenomen MP3 streams for maximum browser compatibility.
+// These endpoints provide standard audio streams that work without HLS.js.
 const RADIO_STATIONS = [
-    { name: "Joy FM", url: "https://playerservices.streamtheworld.com/api/livestream-redirect/JOY_FM_SC" },
-    { name: "Power Türk", url: "https://listen.powerapp.com.tr/powerturk/icecast.audio" },
+    { name: "Süper FM", url: "https://playerservices.streamtheworld.com/api/livestream-redirect/SUPER_FM_SC" },
+    { name: "Joy Türk", url: "https://playerservices.streamtheworld.com/api/livestream-redirect/JOY_TURK_SC" },
     { name: "Metro FM", url: "https://playerservices.streamtheworld.com/api/livestream-redirect/METRO_FM_SC" },
-    { name: "Virgin Radio", url: "https://playerservices.streamtheworld.com/api/livestream-redirect/VIRGIN_RADIO_SC" },
-    { name: "Joy Turk", url: "https://playerservices.streamtheworld.com/api/livestream-redirect/JOY_TURK_SC" },
-    { name: "Süper FM", url: "https://playerservices.streamtheworld.com/api/livestream-redirect/SUPER_FM_SC" }
+    { name: "Virgin Radio", url: "https://playerservices.streamtheworld.com/api/livestream-redirect/VIRGIN_RADIO_TR_SC" },
+    { name: "Joy FM", url: "https://playerservices.streamtheworld.com/api/livestream-redirect/JOY_FM_SC" },
+    { name: "Fenomen", url: "https://listen.radyofenomen.com/fenomen/128/icecast.audio" }
 ];
 
 // --- MATH UTILS ---
@@ -72,11 +73,10 @@ const analyzeConditions = (weather: WeatherData | null): CoPilotAnalysis => {
 
 // --- SUB-COMPONENTS ---
 
-// 1. DETAIL MODAL (Refactored to Centered Popup)
+// 1. DETAIL MODAL
 const DetailOverlay = ({ type, data, onClose, theme, radioHandlers }: any) => {
     if (!type) return null;
     const isDark = theme === 'dark';
-    // Popup style instead of full screen
     const bgClass = isDark ? "bg-[#111827]" : "bg-white";
     const textClass = isDark ? "text-white" : "text-slate-900";
     const borderClass = isDark ? "border-slate-700" : "border-slate-200";
@@ -115,29 +115,9 @@ const DetailOverlay = ({ type, data, onClose, theme, radioHandlers }: any) => {
                 <div className="flex-1 overflow-y-auto no-scrollbar p-5">
                     {type === 'radio' && (
                         <div className="flex flex-col gap-4">
-                            {/* Control Bar */}
-                            <div className={`p-4 rounded-2xl flex items-center justify-between border ${radioHandlers.isPlaying ? 'border-cyan-500/30 bg-cyan-500/10' : `border-slate-700/50 ${isDark ? 'bg-slate-800/50' : 'bg-slate-50'}`}`}>
-                                <div className="flex items-center gap-3">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${radioHandlers.isPlaying ? 'bg-cyan-500 text-white animate-pulse' : 'bg-slate-700 text-slate-400'}`}>
-                                        {radioHandlers.isPlaying ? <Volume2 size={20} /> : <Radio size={20} />}
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-[10px] font-bold opacity-60 uppercase">DURUM</span>
-                                        <span className={`font-black ${radioHandlers.isPlaying ? 'text-cyan-400' : ''}`}>
-                                            {radioHandlers.isPlaying ? 'ÇALIYOR' : 'HAZIRDA BEKLİYOR'}
-                                        </span>
-                                    </div>
-                                </div>
-                                <button 
-                                    onClick={() => radioHandlers.stop()}
-                                    className={`px-4 py-2 rounded-xl text-xs font-black border transition-all active:scale-95 ${radioHandlers.isPlaying ? 'bg-rose-500 text-white border-rose-600 shadow-lg shadow-rose-500/20' : 'opacity-50 cursor-not-allowed border-slate-600'}`}
-                                    disabled={!radioHandlers.isPlaying}
-                                >
-                                    DURDUR
-                                </button>
-                            </div>
-
-                            <span className="text-xs font-bold opacity-50 px-1">KANAL LİSTESİ</span>
+                            <span className="text-xs font-bold opacity-50 px-1">
+                                {radioHandlers.isPlaying ? 'KANAL DEĞİŞTİRMEK İÇİN SEÇİN' : 'BİR KANAL SEÇİN'}
+                            </span>
                             
                             {/* Grid Layout for Cards */}
                             <div className="grid grid-cols-2 gap-3">
@@ -154,14 +134,14 @@ const DetailOverlay = ({ type, data, onClose, theme, radioHandlers }: any) => {
                                                 }`}
                                         >
                                             {isActive && (
-                                                <span className="absolute top-2 right-2 flex h-2 w-2">
+                                                <span className="absolute top-3 right-3 flex h-3 w-3">
                                                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                                                  <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
                                                 </span>
                                             )}
                                             
-                                            <div className={`p-3 rounded-full ${isActive ? 'bg-cyan-500 text-white' : 'bg-slate-700/30 text-slate-400'}`}>
-                                                <Music size={24} />
+                                            <div className={`p-4 rounded-full transition-colors ${isActive ? 'bg-cyan-500 text-white' : 'bg-slate-700/30 text-slate-400'}`}>
+                                                <Music size={28} />
                                             </div>
                                             <span className={`text-sm font-black text-center leading-tight ${isActive ? 'text-cyan-400' : ''}`}>{station.name}</span>
                                         </button>
@@ -420,22 +400,11 @@ const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, radioState, maxLef
                     </div>
                 </div>
 
-                {/* RADIO CARD (REPLACES ALTITUDE) */}
+                {/* RADIO CARD */}
                 <div onClick={() => onExpand('radio')} className={`${cardClass} border rounded-2xl p-4 flex flex-col relative overflow-hidden h-28 active:scale-95 cursor-pointer ${radioState.isPlaying ? 'border-cyan-500/50' : ''}`}>
                     <div className="absolute top-2 right-2 z-20">
-                         {radioState.isPlaying ? (
-                             <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    radioState.stop();
-                                }}
-                                className="p-1.5 bg-rose-500 text-white rounded-full shadow-lg shadow-rose-500/40 hover:scale-110 transition-transform animate-in zoom-in"
-                             >
-                                <StopCircle size={18} fill="currentColor" />
-                             </button>
-                         ) : (
-                             <div className="opacity-50"><Radio size={24} /></div>
-                         )}
+                         {/* Removed small stop button from here, main interface now handles it better */}
+                         <div className="opacity-50"><Radio size={24} /></div>
                     </div>
 
                     <span className={`text-[9px] font-bold uppercase tracking-wider ${labelClass}`}>RADYO</span>
@@ -624,12 +593,7 @@ const App: React.FC = () => {
     if (!audio) return;
 
     if (radioPlaying) {
-        // Only reload if the source URL is different. 
-        // audio.src returns the absolute URL, so we compare with that if possible, 
-        // or just rely on state index change which is safer for this logic.
         const targetUrl = RADIO_STATIONS[currentStation].url;
-        
-        // Check if we need to load a new source
         if (audio.src !== targetUrl) {
             audio.src = targetUrl;
             audio.load();
@@ -638,7 +602,6 @@ const App: React.FC = () => {
         const playPromise = audio.play();
         if (playPromise !== undefined) {
             playPromise.catch(error => {
-                // Ignore AbortError which happens when switching stations quickly
                 if (error.name !== 'AbortError') {
                     console.error("Radio playback error:", error);
                     setRadioPlaying(false);
@@ -650,10 +613,7 @@ const App: React.FC = () => {
     }
   }, [radioPlaying, currentStation]);
 
-  // Handlers now only update state
   const handleRadioPlay = (idx: number) => {
-      // If same station is clicked while playing, do nothing or maybe restart? 
-      // Let's just switch station or ensure playing.
       setCurrentStation(idx);
       setRadioPlaying(true);
   };
@@ -851,6 +811,28 @@ const App: React.FC = () => {
 
   const showRainWarning = weather && (weather.rainProb > 20 || weather.rain > 0.1);
 
+  // NATIVE BACK BUTTON HANDLING (For APK/Android)
+  useEffect(() => {
+      const handlePopState = () => {
+          if (expandedView) {
+              setExpandedView(null);
+          }
+      };
+
+      if (expandedView) {
+          window.history.pushState({ modal: true }, "", "");
+          window.addEventListener('popstate', handlePopState);
+      }
+
+      return () => {
+          window.removeEventListener('popstate', handlePopState);
+      };
+  }, [expandedView]);
+
+  const handleCloseModal = () => {
+     window.history.back();
+  };
+
   return (
     <div className={`${mainBg} w-full h-[100dvh] flex flex-col relative overflow-hidden font-sans select-none transition-colors duration-300`}>
         
@@ -858,14 +840,13 @@ const App: React.FC = () => {
         <audio 
             ref={audioRef}
             onError={(e) => {
-                // Avoid circular structure error by logging specific properties
                 const target = e.currentTarget as HTMLAudioElement;
                 console.error("Radio Error:", target.error ? target.error.message : "Unknown", target.src);
                 setRadioPlaying(false);
             }}
             onEnded={() => setRadioPlaying(false)}
             className="hidden"
-            crossOrigin="anonymous"
+            // Removed crossOrigin="anonymous" to allow opaque responses from radio servers (fixes format errors)
             preload="none"
         />
 
@@ -875,7 +856,7 @@ const App: React.FC = () => {
             <DetailOverlay 
                 type={expandedView} 
                 data={expandedData} 
-                onClose={() => setExpandedView(null)} 
+                onClose={handleCloseModal} 
                 theme={theme}
                 radioHandlers={{
                     isPlaying: radioPlaying,
@@ -886,8 +867,8 @@ const App: React.FC = () => {
             />
         )}
 
-        {/* TOP BAR */}
-        <div className="flex justify-between items-start px-6 pt-6 pb-2 z-20 shrink-0">
+        {/* TOP BAR WITH SAFE AREA PADDING */}
+        <div className="flex justify-between items-start px-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-2 z-20 shrink-0">
              <div className="flex flex-col gap-2">
                  <div className="flex items-center gap-3 active:scale-95 transition-transform" onClick={() => setShowCalibration(true)}>
                      <div className={`w-2.5 h-2.5 rounded-full ${gpsStatus === 'ok' ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500 animate-pulse'}`}></div>
@@ -910,6 +891,34 @@ const App: React.FC = () => {
              
              <DigitalClock isDark={isDark} toggleTheme={toggleTheme} batteryLevel={batteryLevel} />
         </div>
+
+        {/* ACTIVE RADIO CONTROL - MAIN PAGE - NEW ADDITION */}
+        {radioPlaying && !expandedView && (
+            <div className="w-full px-6 mt-2 z-30 animate-in slide-in-from-top-4 fade-in duration-300">
+                <button 
+                    onClick={handleRadioStop}
+                    className="w-full bg-slate-900/90 backdrop-blur-md border-l-4 border-rose-500 rounded-r-xl rounded-l-sm p-4 flex items-center justify-between shadow-2xl group active:bg-slate-800 transition-colors"
+                >
+                    <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="relative shrink-0">
+                             <span className="absolute inset-0 rounded-full animate-ping bg-rose-500/50"></span>
+                             <div className="relative bg-slate-800 p-2 rounded-full text-rose-500">
+                                <Volume2 size={20} className="animate-pulse" />
+                             </div>
+                        </div>
+                        <div className="flex flex-col items-start overflow-hidden">
+                            <span className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">CANLI YAYIN</span>
+                            <span className="text-white font-black text-lg truncate leading-none">{RADIO_STATIONS[currentStation].name}</span>
+                        </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 bg-rose-600/10 px-3 py-1.5 rounded-lg border border-rose-600/20 group-hover:bg-rose-600 group-hover:text-white transition-colors text-rose-500">
+                        <span className="text-xs font-bold">DURDUR</span>
+                        <StopCircle size={18} fill="currentColor" />
+                    </div>
+                </button>
+            </div>
+        )}
 
         {/* Floating Rain Warning */}
         {showRainWarning && (
