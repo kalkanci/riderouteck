@@ -16,6 +16,19 @@ export interface WeatherData {
   rain: number;
   rainProb: number;
   weatherCode: number;
+  humidity: number;
+  pressure: number;
+  visibility: number;
+  elevation: number; // New field for topographic altitude
+}
+
+export interface StationData {
+  name: string;
+  direction: string; // "Kuzey", "Güney" etc.
+  temp: number;
+  windSpeed: number;
+  rainProb: number;
+  weatherCode: number;
 }
 
 export interface TelemetryData {

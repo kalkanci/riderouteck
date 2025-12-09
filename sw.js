@@ -1,17 +1,28 @@
 
-const CACHE_NAME = 'motorota-v8-stable';
+const CACHE_NAME = 'motorota-v9-stable';
+
+// Add critical CDNs to static assets to ensure they are available offline
 const STATIC_ASSETS = [
   './index.html',
   './manifest.json',
-  './index.tsx'
+  './index.tsx',
+  'https://cdn.tailwindcss.com',
+  'https://aistudiocdn.com/react@^19.2.0',
+  'https://aistudiocdn.com/react-dom@^19.2.0/client',
+  'https://aistudiocdn.com/react@^19.2.0/jsx-runtime',
+  'https://aistudiocdn.com/@google/genai@^1.30.0',
+  'https://aistudiocdn.com/lucide-react@^0.555.0',
+  'https://aistudiocdn.com/react-dom@^19.2.0/',
+  'https://aistudiocdn.com/react@^19.2.0/'
 ];
 
-// Install Event: Cache core files
+// Install Event: Cache core files immediately
 self.addEventListener('install', (event) => {
-  self.skipWaiting(); // Force activation
+  self.skipWaiting(); 
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS).catch(console.error);
+      // Use addAllSettled if available or handle errors individually to prevent one failure blocking all
+      return cache.addAll(STATIC_ASSETS).catch(err => console.error("Cache add failed", err));
     })
   );
 });
@@ -32,46 +43,37 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch Event: Network First with Navigation Fallback
+// Fetch Event: Stale-While-Revalidate Strategy
 self.addEventListener('fetch', (event) => {
-  // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
-  // SPA Navigation Strategy: If navigation fails (404/Offline), show index.html
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          // If server returns 404 or error for the page, fall back to cache
-          if (!response || !response.ok) {
-             return caches.match('./index.html');
+  const url = new URL(event.request.url);
+
+  // Strategy: Try cache first, then network. If network succeeds, update cache.
+  // This is better for "shell" architecture.
+  event.respondWith(
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const cachedResponse = await cache.match(event.request);
+      
+      const fetchPromise = fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            // Clone and cache the new version
+            cache.put(event.request, networkResponse.clone());
           }
-          return response;
+          return networkResponse;
         })
         .catch(() => {
-          // Offline fallback
-          return caches.match('./index.html');
-        })
-    );
-    return;
-  }
+          // Network failed
+          // If navigation request and no cache, return index.html (offline fallback)
+          if (event.request.mode === 'navigate') {
+            return cache.match('./index.html');
+          }
+          // Return null/undefined if not found in cache and network fails
+        });
 
-  // Standard Asset Strategy: Network First, then Cache
-  event.respondWith(
-    fetch(event.request)
-      .then((networkResponse) => {
-        // Update cache if successful and valid
-        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
-        }
-        return networkResponse;
-      })
-      .catch(() => {
-        // If offline, try cache
-        return caches.match(event.request);
-      })
+      // Return cached response immediately if available, otherwise wait for network
+      return cachedResponse || fetchPromise;
+    })
   );
 });

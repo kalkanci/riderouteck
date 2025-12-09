@@ -6,20 +6,17 @@
     <title>MotoRota Telemetry</title>
     <!-- PWA Manifest -->
     <link rel="manifest" href="./manifest.json" />
-    <meta name="theme-color" content="#0b0f19" />
+    <meta name="theme-color" content="#000000" />
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/5766/5766324.png">
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       :root {
-        --bg-color: #0b0f19; /* Darker Slate */
-        --surface-color: #111827; /* Gray-900 */
-        --text-primary: #f8fafc;
-        --accent-safe: #10b981; /* Emerald-500 */
-        --accent-warn: #f59e0b; /* Amber-500 */
-        --accent-danger: #ef4444; /* Red-500 */
+        --bg-color: #000000;
+        --text-primary: #ffffff;
       }
       body {
         margin: 0;
@@ -32,29 +29,76 @@
         user-select: none;
         -webkit-tap-highlight-color: transparent;
       }
-      #root { height: 100dvh; width: 100vw; }
+      #root { height: 100dvh; width: 100vw; position: relative; }
       
-      /* Dashboard Grid Background */
-      .dash-bg {
-        background-color: #0b0f19;
-        background-image: linear-gradient(rgba(17, 24, 39, 0.5) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(17, 24, 39, 0.5) 1px, transparent 1px);
-        background-size: 40px 40px;
+      /* --- INFINITE ROAD ANIMATION --- */
+      .scene-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: radial-gradient(circle at 50% 0%, #1a1a2e 0%, #000000 70%);
+        z-index: 0;
+      }
+
+      .road-plane {
+        position: absolute;
+        bottom: -50vh;
+        left: 50%;
+        width: 200vw;
+        height: 100vh;
+        transform: translateX(-50%) perspective(300px) rotateX(80deg);
+        background: 
+            /* Center Line */
+            linear-gradient(90deg, transparent 49.5%, rgba(255, 255, 255, 0.4) 49.5%, rgba(255, 255, 255, 0.4) 50.5%, transparent 50.5%),
+            /* Lane Markers */
+            linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px),
+            /* Asphalt Texture */
+            linear-gradient(0deg, transparent 0%, rgba(0,0,0,0.8) 100%),
+            #0a0a0a;
+        background-size: 100% 100%, 20% 100%, 100% 100%, 100% 100%;
+        /* Animation mask to simulate movement */
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20%);
+        mask-image: linear-gradient(to bottom, transparent 0%, black 20%);
+      }
+
+      .moving-grid {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 200%; /* Double height for looping */
+        background: 
+            linear-gradient(0deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+        background-size: 100% 100px;
+        animation: roadMove 1s linear infinite;
+      }
+
+      @keyframes roadMove {
+        from { transform: translateY(0); }
+        to { transform: translateY(50%); } /* Move half (100% of original height) */
+      }
+
+      /* Horizon Glow */
+      .horizon-glow {
+        position: absolute;
+        top: 40%;
+        left: 0;
+        width: 100%;
+        height: 1px;
+        box-shadow: 0 0 100px 40px rgba(56, 189, 248, 0.15);
+        z-index: 0;
       }
 
       /* No Scrollbar */
       .no-scrollbar::-webkit-scrollbar { display: none; }
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-      /* Neon Text Effects */
-      .neon-text-cyan { text-shadow: 0 0 10px rgba(34, 211, 238, 0.5); }
-      .neon-text-red { text-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
-      
-      .glass-panel {
-        background: rgba(17, 24, 39, 0.7);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.05);
+      /* iOS-like Spring Easing */
+      .ios-ease {
+        transition-timing-function: cubic-bezier(0.25, 0.8, 0.25, 1);
       }
     </style>
   <script type="importmap">
