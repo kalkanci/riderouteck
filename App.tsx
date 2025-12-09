@@ -582,13 +582,22 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const nav = navigator as any;
-    if (nav.getBattery) {
+    if (nav && typeof nav.getBattery === 'function') {
         nav.getBattery().then((battery: any) => {
-            // Fix for TS 'never' type issue: explicitly cast battery to an object with addEventListener
-            const bat = battery as { level: number; addEventListener: (t: string, l: any) => void };
-            setBatteryLevel(bat.level * 100);
-            bat.addEventListener('levelchange', () => setBatteryLevel(bat.level * 100));
-        });
+            // Explicitly cast battery to unknown and then to the specific type to avoid 'never' issues
+            const bat = battery as { 
+                level: number; 
+                addEventListener: (type: string, listener: any) => void; 
+                removeEventListener: (type: string, listener: any) => void 
+            };
+            
+            if (bat) {
+                setBatteryLevel(bat.level * 100);
+                if (typeof bat.addEventListener === 'function') {
+                    bat.addEventListener('levelchange', () => setBatteryLevel(bat.level * 100));
+                }
+            }
+        }).catch((e: any) => console.log('Battery API error', e));
     }
   }, []);
 

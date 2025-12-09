@@ -1,11 +1,11 @@
 
-const CACHE_NAME = 'motorota-v9-stable';
+const CACHE_NAME = 'motorota-v10-stable';
 
 // Add critical CDNs to static assets to ensure they are available offline
+// REMOVED: './index.tsx' because it does not exist in the production build (dist folder).
 const STATIC_ASSETS = [
   './index.html',
   './manifest.json',
-  './index.tsx',
   'https://cdn.tailwindcss.com',
   'https://aistudiocdn.com/react@^19.2.0',
   'https://aistudiocdn.com/react-dom@^19.2.0/client',
@@ -46,8 +46,6 @@ self.addEventListener('activate', (event) => {
 // Fetch Event: Stale-While-Revalidate Strategy
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-
-  const url = new URL(event.request.url);
 
   // Strategy: Try cache first, then network. If network succeeds, update cache.
   // This is better for "shell" architecture.
