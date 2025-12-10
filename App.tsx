@@ -286,14 +286,14 @@ const DetailOverlay = ({ type, data, onClose, radioHandlers }: any) => {
                                 <Scan size={48} className="text-blue-400 animate-pulse mb-3"/>
                                 <h3 className="text-blue-300 text-sm font-bold uppercase tracking-widest mb-1">50KM YARIÇAP</h3>
                                 <div className="text-3xl font-light tracking-tighter">
-                                    {data.weather.rainProb > 0 || data.stations.some((s:any) => s.rainProb > 0) ? "YAĞIŞ VAR" : "TEMİZ"}
+                                    {(data.weather?.rainProb > 0 || data.stations?.some((s:any) => s.rainProb > 0)) ? "YAĞIŞ VAR" : "TEMİZ"}
                                 </div>
                                 <div className="mt-3 text-xs text-white/50">Bölgesel istasyon verilerine göre analiz edildi.</div>
                              </div>
                              
                              <div className="space-y-2">
                                 <h4 className="text-xs text-white/40 uppercase tracking-widest px-1">BÖLGESEL RAPOR</h4>
-                                {data.stations.map((s:any, i:number) => (
+                                {data.stations?.map((s:any, i:number) => (
                                     <div key={i} className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5">
                                         <span className="text-xs font-bold text-white/70">{s.direction} ({s.name})</span>
                                         <div className="flex items-center gap-2">
@@ -334,135 +334,6 @@ const DetailOverlay = ({ type, data, onClose, radioHandlers }: any) => {
     );
 };
 
-const DigitalClock = ({ isDark, toggleTheme, batteryLevel, btDevice, onConnectBt, isFocusMode }: any) => {
-    const [time, setTime] = useState(new Date());
-    useEffect(() => { const t = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(t); }, []);
-
-    return (
-        <div className={`flex flex-col items-end transition-opacity duration-500 ${isFocusMode ? 'opacity-0' : 'opacity-100'}`}>
-             <div className="text-3xl font-bold tracking-tight leading-none tabular-nums font-mono">{time.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</div>
-             <div className="flex items-center gap-3 mt-1.5 opacity-60">
-                 <button onClick={onConnectBt} className={`flex items-center gap-1.5 ${btDevice ? 'text-blue-400' : 'text-white/50'}`}>
-                     {btDevice ? <Headphones size={14} /> : <Bluetooth size={14} />}
-                     {btDevice && <span className="text-[10px] font-bold uppercase max-w-[60px] truncate">{btDevice.level ? `${btDevice.level}%` : 'BAĞLI'}</span>}
-                 </button>
-                 <div className="w-px h-3 bg-white/20"></div>
-                 <div className="flex items-center gap-1.5">
-                     <span className="text-[10px] font-bold">{Math.round(batteryLevel)}%</span>
-                     <div className="relative">
-                        <Battery size={14} className={batteryLevel < 20 ? 'text-red-500' : 'text-white'} />
-                        <div className={`absolute top-[3px] left-[2px] bottom-[3px] w-[8px] bg-current rounded-[1px] ${batteryLevel < 20 ? 'bg-red-500' : 'bg-white'}`} style={{width: `${batteryLevel * 0.08}px`}}></div>
-                     </div>
-                 </div>
-             </div>
-        </div>
-    );
-};
-
-const DigitalSpeedDisplay = ({ speed, onClick }: any) => {
-    // Dynamic sizing logic
-    // 0 km/h -> 4rem size
-    // 150 km/h -> 16rem size (capped)
-    const fontSizeRem = Math.max(4, Math.min(16, 4 + (speed * 0.1)));
-    
-    return (
-        <div onClick={onClick} className="flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform duration-200 z-30 min-h-[250px]">
-             <div className="relative flex items-end justify-center h-[200px]">
-                 <span 
-                    className="font-['Chakra_Petch'] font-black leading-[0.8] tracking-tighter tabular-nums text-transparent bg-clip-text bg-gradient-to-b from-white to-white/50 drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)] transition-all duration-300 ease-out"
-                    style={{ fontSize: `${fontSizeRem}rem` }}
-                 >
-                     {Math.round(speed)}
-                 </span>
-             </div>
-             <span className="text-sm sm:text-xl font-bold text-white/40 tracking-[0.5em] uppercase mt-4 ml-4">KM/H</span>
-        </div>
-    );
-};
-
-const EnvGrid = ({ weather, aheadWeather, analysis, bikeHeading, tripDistance, currentStation, isPlaying, isDark, onExpand, btDevice, onConnectBt, windChill, apparentWind, isFocusMode, stations, onTogglePlay }: any) => {
-    // Check if any station nearby or current location has rain
-    const isRainInArea = weather?.rainProb > 0 || stations.some((s:any) => s.rainProb > 0);
-
-    return (
-        <div className={`grid grid-cols-2 gap-3 px-4 pb-6 w-full max-w-lg mx-auto transition-all duration-700 ${isFocusMode ? 'translate-y-20 opacity-0' : 'translate-y-0 opacity-100'}`}>
-            
-            {/* 1. Dynamic Wind Radar (Top Left) */}
-            <div onClick={() => onExpand('weather')} className="col-span-1 aspect-square bg-white/5 border border-white/10 rounded-3xl relative overflow-hidden active:scale-95 transition-transform shadow-lg">
-                {weather ? (
-                    <WindRadar windSpeed={weather.windSpeed} apparentWind={apparentWind} windDirection={weather.windDirection} bikeHeading={bikeHeading} windChill={windChill} />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center text-white/20"><Wind size={32} className="animate-pulse" /></div>
-                )}
-            </div>
-
-            {/* 2. 10KM Route Forecast (Top Right) */}
-            <div onClick={() => onExpand('ahead')} className="col-span-1 aspect-square bg-emerald-950/20 border border-emerald-500/20 rounded-3xl p-3 relative active:scale-95 transition-transform flex flex-col justify-between group overflow-hidden">
-                <div className="absolute top-0 right-0 p-2 opacity-30 group-hover:opacity-60 transition-opacity"><Navigation size={20} className="text-emerald-400"/></div>
-                 <div className="z-10">
-                    <div className="text-[9px] font-bold uppercase tracking-widest text-emerald-400 mb-0.5">10 KM ROTA</div>
-                    <div className="text-[9px] font-medium text-white/40 leading-none">TAHMİNİ DURUM</div>
-                </div>
-                <div className="z-10 flex flex-col items-start mt-1">
-                     {aheadWeather ? (
-                         <>
-                            <div className="flex items-center gap-2">
-                                {getWeatherIcon(aheadWeather.weatherCode, 28, true)}
-                                <div className="text-4xl font-bold tracking-tighter">{Math.round(aheadWeather.temp)}°</div>
-                            </div>
-                            <div className="flex items-center gap-1.5 mt-auto">
-                                <Droplets size={12} className={aheadWeather.rainProb > 20 ? 'text-blue-400' : 'text-white/30'}/> 
-                                <span className={`text-xs font-bold ${aheadWeather.rainProb > 20 ? 'text-blue-300' : 'text-white/50'}`}>%{aheadWeather.rainProb}</span>
-                            </div>
-                         </>
-                     ) : (
-                         <div className="text-xs text-white/30 animate-pulse mt-2">Hesaplanıyor...</div>
-                     )}
-                </div>
-            </div>
-
-            {/* 3. 50KM Rain Scanner (Bottom Left) - CHANGED */}
-            <div onClick={() => onExpand('weather')} className={`col-span-1 aspect-square rounded-3xl p-4 relative active:scale-95 transition-transform flex flex-col justify-between items-start group border ${isRainInArea ? 'bg-blue-900/20 border-blue-500/30' : 'bg-white/5 border-white/10'}`}>
-                 <div className="absolute top-3 right-3 opacity-50">
-                    {isRainInArea ? <CloudRain size={16} className="text-blue-400 animate-bounce"/> : <Scan size={16} className="text-white/30"/>}
-                 </div>
-                 <div className="text-[9px] font-bold uppercase tracking-widest text-white/40">50KM YARIÇAP</div>
-                 
-                 {weather ? (
-                     <>
-                        <div className="self-center mt-auto mb-auto relative">
-                             {/* Radar Pulse Effect */}
-                             {!isRainInArea && (
-                                <div className="absolute inset-0 rounded-full border border-emerald-500/30 animate-[ping_3s_linear_infinite]"></div>
-                             )}
-                             <Radar size={40} className={isRainInArea ? 'text-blue-400' : 'text-emerald-500/50'} />
-                        </div>
-                        <div className="w-full text-center">
-                            <div className={`text-lg font-bold tracking-tight ${isRainInArea ? 'text-blue-300' : 'text-emerald-400'}`}>
-                                {isRainInArea ? "YAĞIŞ RİSKİ" : "BÖLGE TEMİZ"}
-                            </div>
-                        </div>
-                     </>
-                 ) : (
-                     <div className="flex-1 flex items-center justify-center opacity-30">...</div>
-                 )}
-            </div>
-
-            {/* 4. CoPilot (Bottom Right) */}
-            <div onClick={() => onExpand('copilot')} className="col-span-1 aspect-square bg-gradient-to-br from-white/10 to-transparent border border-white/5 rounded-3xl p-4 flex flex-col justify-between active:scale-95 transition-transform relative overflow-hidden group">
-                 <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity"><ShieldCheck size={32} /></div>
-                 <div>
-                     <div className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${analysis.color.replace('text-', 'text-')}`}>CO-PILOT</div>
-                     <div className={`text-base font-bold leading-none tracking-tight text-white`}>{analysis.status === 'safe' ? 'GÜVENLİ' : analysis.status === 'caution' ? 'DİKKAT' : 'RİSKLİ'}</div>
-                 </div>
-                 <div className="text-[9px] font-medium text-white/60 leading-snug line-clamp-2 mt-auto">
-                     {analysis.message}
-                 </div>
-            </div>
-        </div>
-    );
-};
-
 const CalibrationModal = ({ isOpen, onClose, offset, setOffset }: any) => {
     if (!isOpen) return null;
 
@@ -492,6 +363,113 @@ const CalibrationModal = ({ isOpen, onClose, offset, setOffset }: any) => {
                      <button onClick={() => { setOffset(0); localStorage.setItem('compassOffset', '0'); onClose(); }} className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold text-white/60 transition-colors">SIFIRLA</button>
                      <button onClick={() => { localStorage.setItem('compassOffset', offset.toString()); onClose(); }} className="flex-[2] py-3 rounded-xl bg-white text-black text-xs font-bold hover:bg-white/90 transition-colors">KAYDET</button>
                 </div>
+            </div>
+        </div>
+    );
+};
+
+const DigitalClock = ({ isDark, toggleTheme, batteryLevel, btDevice, onConnectBt, isFocusMode }: any) => {
+    const [time, setTime] = useState(new Date());
+
+    useEffect(() => {
+        const timer = setInterval(() => setTime(new Date()), 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const formatTime = (date: Date) => {
+        return date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    };
+
+    return (
+        <div className={`flex items-center gap-4 transition-opacity duration-500 ${isFocusMode ? 'opacity-0' : 'opacity-100'}`}>
+            <div className="flex flex-col items-end">
+                <div className="text-3xl font-bold leading-none tracking-tight text-white drop-shadow-lg font-mono">
+                    {formatTime(time)}
+                </div>
+                <div className="text-[10px] font-bold text-white/50 uppercase tracking-widest">
+                    {time.toLocaleDateString('tr-TR', { weekday: 'short', day: 'numeric', month: 'short' })}
+                </div>
+            </div>
+            <div className="flex flex-col gap-1">
+                 <button onClick={onConnectBt} className={`flex items-center gap-1 px-2 py-0.5 rounded-md ${btDevice ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-white/30'}`}>
+                    {btDevice ? <Headphones size={12} /> : <Bluetooth size={12} />}
+                    <span className="text-[10px] font-bold">{btDevice ? `${btDevice.level}%` : '---'}</span>
+                 </button>
+                 <div className={`flex items-center gap-1 px-2 py-0.5 rounded-md ${batteryLevel < 20 ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
+                    <Battery size={12} />
+                    <span className="text-[10px] font-bold">{Math.round(batteryLevel)}%</span>
+                 </div>
+            </div>
+        </div>
+    );
+};
+
+const DigitalSpeedDisplay = ({ speed, onClick }: any) => {
+    return (
+        <div onClick={onClick} className="flex flex-col items-center justify-center scale-100 active:scale-95 transition-transform cursor-pointer">
+            <div className="relative">
+                <span className="text-[10rem] sm:text-[13rem] font-black leading-[0.8] text-white tracking-tighter drop-shadow-[0_0_50px_rgba(255,255,255,0.2)] font-sans">
+                    {Math.round(speed)}
+                </span>
+                <span className="absolute -bottom-4 left-1/2 -translate-x-1/2 text-sm font-bold text-white/40 uppercase tracking-[0.5em] bg-black/20 px-4 py-1 rounded-full backdrop-blur-sm">KM/H</span>
+            </div>
+        </div>
+    );
+};
+
+const EnvGrid = ({ weather, aheadWeather, analysis, bikeHeading, tripDistance, currentStation, isPlaying, isDark, onExpand, btDevice, onConnectBt, windChill, apparentWind, isFocusMode, stations, onTogglePlay }: any) => {
+    return (
+        <div className={`w-full max-w-md px-6 pb-8 grid grid-cols-2 gap-3 transition-all duration-700 ${isFocusMode ? 'translate-y-20 opacity-0' : 'translate-y-0 opacity-100'}`}>
+            
+            {/* CoPilot Widget */}
+            <div onClick={() => onExpand('copilot')} className="col-span-2 bg-[#18181b]/80 backdrop-blur-md border border-white/10 rounded-2xl p-4 flex items-center justify-between shadow-lg active:scale-98 transition-transform">
+                 <div className="flex items-center gap-3">
+                     <div className={`w-10 h-10 rounded-full flex items-center justify-center ${analysis.status === 'safe' ? 'bg-emerald-500/20 text-emerald-400' : analysis.status === 'caution' ? 'bg-amber-500/20 text-amber-400' : 'bg-rose-500/20 text-rose-500'}`}>
+                         {analysis.status === 'safe' ? <ShieldCheck size={20} /> : analysis.status === 'caution' ? <Shield size={20} /> : <ShieldAlert size={20} />}
+                     </div>
+                     <div className="flex flex-col">
+                         <span className={`text-xs font-bold uppercase tracking-wider ${analysis.color}`}>{analysis.roadCondition}</span>
+                         <span className="text-[10px] text-white/50 line-clamp-1">{analysis.message}</span>
+                     </div>
+                 </div>
+                 <div className="h-8 w-px bg-white/10 mx-2"></div>
+                 <div className="flex flex-col items-end">
+                      <span className="text-xs font-bold text-white/60">CO-PILOT</span>
+                      <span className="text-[10px] text-emerald-400 font-bold">AKTİF</span>
+                 </div>
+            </div>
+
+            {/* Weather Widget */}
+            <div onClick={() => onExpand('weather')} className="bg-[#18181b]/80 backdrop-blur-md border border-white/10 rounded-2xl p-3 flex flex-col justify-between h-32 active:scale-95 transition-transform shadow-lg relative overflow-hidden group">
+                 <div className="absolute top-0 right-0 p-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                     <Scan size={14} className="text-white/40" />
+                 </div>
+                 <div className="flex justify-between items-start">
+                     <div className="flex flex-col">
+                         <span className="text-3xl font-bold text-white tracking-tighter">{weather ? Math.round(weather.temp) : '--'}°</span>
+                         <span className="text-[10px] text-white/50 font-bold uppercase">HAVA</span>
+                     </div>
+                     <div className="pt-1">
+                         {weather && getWeatherIcon(weather.weatherCode, 28)}
+                     </div>
+                 </div>
+                 <div className="flex items-center gap-2 mt-2">
+                     <div className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded-lg">
+                         <Droplets size={12} className={weather?.rainProb > 0 ? "text-blue-400" : "text-white/30"} />
+                         <span className={`text-xs font-bold ${weather?.rainProb > 0 ? "text-blue-400" : "text-white/30"}`}>%{weather?.rainProb || 0}</span>
+                     </div>
+                 </div>
+            </div>
+
+            {/* Wind Radar Widget */}
+            <div className="bg-[#18181b]/80 backdrop-blur-md border border-white/10 rounded-2xl relative overflow-hidden h-32 shadow-lg">
+                <WindRadar 
+                    windSpeed={weather?.windSpeed || 0}
+                    apparentWind={apparentWind}
+                    windDirection={weather?.windDirection || 0}
+                    bikeHeading={bikeHeading}
+                    windChill={windChill}
+                />
             </div>
         </div>
     );
