@@ -8,7 +8,8 @@ if (!rootElement) {
 }
 
 // Service Worker Registration for PWA
-if ('serviceWorker' in navigator) {
+// Only register if we are on http/https to avoid errors in blob/preview environments
+if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.protocol === 'http:')) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js')
       .then(registration => {

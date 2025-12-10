@@ -18,10 +18,12 @@
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+
     <style>
       :root {
-        --bg-color: #000000;
+        --bg-color: #050505;
         --text-primary: #ffffff;
+        --spotify-green: #1DB954;
       }
       body {
         margin: 0;
@@ -36,7 +38,7 @@
       }
       #root { height: 100dvh; width: 100vw; position: relative; }
       
-      /* --- INFINITE ROAD ANIMATION --- */
+      /* --- BACKGROUND SCENE (Simple Gradient) --- */
       .scene-container {
         position: absolute;
         top: 0;
@@ -44,64 +46,36 @@
         width: 100%;
         height: 100%;
         overflow: hidden;
-        background: radial-gradient(circle at 50% 0%, #0f172a 0%, #000000 60%);
+        background: radial-gradient(circle at 50% -20%, #1e1e24 0%, #050505 60%, #000000 100%);
         z-index: 0;
       }
 
-      .road-plane {
+      /* Subtle Grid Pattern for Tech Feel */
+      .tech-grid {
         position: absolute;
-        bottom: -20vh; /* Started higher up */
-        left: 50%;
-        width: 300vw; /* Wider to cover edges */
-        height: 150vh;
-        /* High Camera Perspective: rotated to look flatter/higher */
-        transform: translateX(-50%) perspective(200px) rotateX(75deg);
-        background: 
-            /* Center Line */
-            linear-gradient(90deg, transparent 49.5%, rgba(255, 255, 255, 0.5) 49.5%, rgba(255, 255, 255, 0.5) 50.5%, transparent 50.5%),
-            /* Lane Markers */
-            linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px),
-            /* Asphalt Texture */
-            linear-gradient(0deg, transparent 0%, rgba(0,0,0,0.9) 100%),
-            #0a0a0a;
-        background-size: 100% 100%, 15% 100%, 100% 100%, 100% 100%;
-        /* Fade out at top */
-        -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%);
-        mask-image: linear-gradient(to bottom, transparent 0%, black 15%);
-      }
-
-      .moving-grid {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 200%;
-        background: 
-            linear-gradient(0deg, rgba(255,255,255,0.1) 1px, transparent 1px);
-        background-size: 100% 150px; /* Larger segments for speed feel */
-        animation: roadMove var(--anim-duration, 100s) linear infinite;
-        will-change: transform;
-      }
-
-      @keyframes roadMove {
-        from { transform: translateY(0); }
-        to { transform: translateY(50%); }
-      }
-
-      /* Horizon Glow - Moved much higher (15%) */
-      .horizon-glow {
-        position: absolute;
-        top: 15%; 
-        left: 0;
-        width: 100%;
-        height: 2px;
-        box-shadow: 0 0 120px 60px rgba(6, 182, 212, 0.2);
-        z-index: 0;
+        inset: 0;
+        background-image: 
+          linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+        background-size: 40px 40px;
+        mask-image: radial-gradient(circle at center, black 40%, transparent 80%);
+        -webkit-mask-image: radial-gradient(circle at center, black 40%, transparent 80%);
+        pointer-events: none;
       }
 
       .no-scrollbar::-webkit-scrollbar { display: none; }
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       .ios-ease { transition-timing-function: cubic-bezier(0.25, 0.8, 0.25, 1); }
+      
+      /* Spotify Pulse Animation */
+      @keyframes spotify-pulse {
+        0% { box-shadow: 0 0 0 0 rgba(29, 185, 84, 0.4); }
+        70% { box-shadow: 0 0 0 10px rgba(29, 185, 84, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(29, 185, 84, 0); }
+      }
+      .spotify-active {
+        animation: spotify-pulse 2s infinite;
+      }
     </style>
   <script type="importmap">
 {
