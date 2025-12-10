@@ -10,7 +10,6 @@ const STATIC_ASSETS = [
   'https://aistudiocdn.com/react@^19.2.0',
   'https://aistudiocdn.com/react-dom@^19.2.0/client',
   'https://aistudiocdn.com/react@^19.2.0/jsx-runtime',
-  'https://aistudiocdn.com/@google/genai@^1.30.0',
   'https://aistudiocdn.com/lucide-react@^0.555.0',
   'https://aistudiocdn.com/react-dom@^19.2.0/',
   'https://aistudiocdn.com/react@^19.2.0/'

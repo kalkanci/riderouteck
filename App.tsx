@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, ArrowUp, Activity, RotateCcw, Mountain, Compass, Navigation, AlertTriangle, Gauge, Droplets, Thermometer, MapPin, Zap, Clock, Umbrella, Download, Settings, RefreshCw, CheckCircle2, Moon, Maximize2, X, Battery, BatteryCharging, Timer, TrendingUp, Shield, ShieldAlert, ShieldCheck, Bike, Bluetooth, Smartphone, Radio, Play, Pause, SkipForward, Music, Headphones, Crosshair, Move, Volume2, VolumeX, StopCircle, BarChart3, RadioReceiver, Mic, Eye, EyeOff, Radar, Waves, ThermometerSnowflake, Glasses, Map } from 'lucide-react';
+import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, Navigation, Clock, Umbrella, Download, X, Battery, Shield, ShieldAlert, ShieldCheck, Bluetooth, Radio, Music, Headphones, Volume2, StopCircle, Radar, ThermometerSnowflake, Glasses, Map } from 'lucide-react';
 import { WeatherData, CoPilotAnalysis, StationData } from './types';
 import { getWeatherForPoint, reverseGeocode, getNearbyStations } from './services/api';
 
@@ -348,7 +348,7 @@ const DigitalSpeedDisplay = ({ speed, onClick }: any) => {
     );
 };
 
-const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, tripTime, tripDistance, accuracy, longitudinalG, gForce, radioState, isDark, onExpand, btDevice, onConnectBt, windChill, apparentWind, isFocusMode, stations }: any) => {
+const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, tripDistance, radioState, isDark, onExpand, btDevice, onConnectBt, windChill, apparentWind, isFocusMode, stations }: any) => {
     // Glassmorphism classes: Dynamic Height (Aspect Ratio) instead of Fixed Height
     const cardClass = "relative p-4 sm:p-5 rounded-[2rem] bg-[#1c1c1e]/40 backdrop-blur-xl border border-white/5 flex flex-col justify-between aspect-[1.5/1] sm:aspect-[1.8/1] active:scale-95 transition-all duration-300 ios-ease overflow-hidden group hover:bg-[#1c1c1e]/60";
     const textMain = "text-white";
@@ -356,12 +356,10 @@ const EnvGrid = ({ weather, analysis, bikeSpeed, bikeHeading, tripTime, tripDist
 
     // Station Summary logic
     let stationSummary = "Yükleniyor...";
-    let variance = 0;
     if (stations && stations.length > 0) {
         const temps = stations.map((s: StationData) => s.temp);
         const minT = Math.min(...temps);
         const maxT = Math.max(...temps);
-        variance = maxT - minT;
         stationSummary = `${Math.round(minT)}° - ${Math.round(maxT)}°`;
     }
 
@@ -432,23 +430,18 @@ const App: React.FC = () => {
   const [maxSpeed, setMaxSpeed] = useState(0);
   const [tripDistance, setTripDistance] = useState(0);
   
-  const [gForce, setGForce] = useState(0);
-  const [longitudinalG, setLongitudinalG] = useState(0);
-  const [maxAccelG, setMaxAccelG] = useState(0);
-  const [maxBrakeG, setMaxBrakeG] = useState(0);
+  // Removed accelerometer states (gForce, maxAccelG etc) for performance
 
   const [gpsHeading, setGpsHeading] = useState<number | null>(null);
   const [deviceHeading, setDeviceHeading] = useState<number>(0);
   const [compassOffset, setCompassOffset] = useState<number>(() => parseInt(localStorage.getItem('compassOffset') || '0'));
 
-  const [accuracy, setAccuracy] = useState(0);
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [aheadWeather, setAheadWeather] = useState<WeatherData | null>(null); 
-  const [nearbyStations, setNearbyStations] = useState<StationData[]>([]); // New State
+  const [nearbyStations, setNearbyStations] = useState<StationData[]>([]);
 
   const [locationName, setLocationName] = useState<string>("");
   const [analysis, setAnalysis] = useState<CoPilotAnalysis>(analyzeConditions(null));
-  const [gpsStatus, setGpsStatus] = useState<'searching' | 'ok' | 'error'>('searching');
   const [batteryLevel, setBatteryLevel] = useState(100);
   const [btDevice, setBtDevice] = useState<{name: string, level: number | null} | null>(() => {
       const saved = localStorage.getItem('lastBtDevice');
@@ -584,17 +577,11 @@ const App: React.FC = () => {
     const nav = navigator as any;
     if (nav && typeof nav.getBattery === 'function') {
         nav.getBattery().then((battery: any) => {
-            // Explicitly cast battery to unknown and then to the specific type to avoid 'never' issues
-            const bat = battery as { 
-                level: number; 
-                addEventListener: (type: string, listener: any) => void; 
-                removeEventListener: (type: string, listener: any) => void 
-            };
-            
-            if (bat) {
-                setBatteryLevel(bat.level * 100);
-                if (typeof bat.addEventListener === 'function') {
-                    bat.addEventListener('levelchange', () => setBatteryLevel(bat.level * 100));
+            // Simplified battery handling to avoid TypeScript 'never' errors on bat.addEventListener
+            if (battery) {
+                setBatteryLevel(battery.level * 100);
+                if (battery.addEventListener) {
+                    battery.addEventListener('levelchange', () => setBatteryLevel(battery.level * 100));
                 }
             }
         }).catch((e: any) => console.log('Battery API error', e));
@@ -623,28 +610,18 @@ const App: React.FC = () => {
     // --- OPTIMIZED COMPASS LOGIC ---
     const handleOrientation = (e: DeviceOrientationEvent) => {
         let rawHeading = 0;
-        // iOS Compass
         if ((e as any).webkitCompassHeading) {
             rawHeading = (e as any).webkitCompassHeading;
         } 
-        // Standard (Fallback)
         else if (e.alpha !== null) {
             rawHeading = 360 - e.alpha; 
         }
         setDeviceHeading(rawHeading);
     };
 
-    // Android Absolute Orientation (Much more accurate if supported)
     const handleAbsoluteOrientation = (e: any) => {
         if (e.alpha !== null) {
             setDeviceHeading(360 - e.alpha);
-        }
-    };
-
-    const handleMotion = (e: DeviceMotionEvent) => {
-        if (e.acceleration) {
-            const totalAccel = Math.sqrt((e.acceleration.x||0)**2 + (e.acceleration.y||0)**2 + (e.acceleration.z||0)**2);
-            setGForce(Math.abs(totalAccel / 9.8)); 
         }
     };
 
@@ -654,17 +631,14 @@ const App: React.FC = () => {
                 const r = await (DeviceOrientationEvent as any).requestPermission(); 
                 if (r === 'granted') { 
                     window.addEventListener('deviceorientation', handleOrientation); 
-                    window.addEventListener('devicemotion', handleMotion); 
                 } 
             } catch (e) {}
         } else {
-            // Prioritize absolute orientation on Android Chrome
             if ('ondeviceorientationabsolute' in window) {
                 (window as any).addEventListener('deviceorientationabsolute', handleAbsoluteOrientation);
             } else {
                 window.addEventListener('deviceorientation', handleOrientation);
             }
-            window.addEventListener('devicemotion', handleMotion); 
         }
     };
     requestSensors();
@@ -674,25 +648,18 @@ const App: React.FC = () => {
         // --- OPTIMIZED GPS LOGIC ---
         watchId = navigator.geolocation.watchPosition(
             async (pos) => {
-                setGpsStatus('ok');
-                const { speed: spd, heading: hdg, accuracy: acc, latitude, longitude } = pos.coords;
+                const { speed: spd, heading: hdg, latitude, longitude } = pos.coords;
                 const kmh = spd ? spd * 3.6 : 0;
                 const safeKmh = kmh < 2 ? 0 : kmh;
                 const now = Date.now();
                 const timeDelta = (now - lastTimeRef.current) / 1000;
                 lastTimeRef.current = now;
 
-                if (timeDelta > 0) {
-                    const deltaV_ms = (safeKmh - lastSpeedRef.current) / 3.6;
-                    const g = (deltaV_ms / timeDelta) / 9.81;
-                    setLongitudinalG(g);
-                    if (g > 0) { if (g > maxAccelG) setMaxAccelG(g); } else { if (Math.abs(g) > maxBrakeG) setMaxBrakeG(Math.abs(g)); }
-                }
                 lastSpeedRef.current = safeKmh;
                 setSpeed(safeKmh);
                 if (safeKmh > maxSpeed) setMaxSpeed(safeKmh);
                 if (safeKmh > 5) setTripDistance(prev => prev + (safeKmh * (timeDelta / 3600)));
-                setGpsHeading(hdg); setAccuracy(acc || 0);
+                setGpsHeading(hdg);
 
                 // Update location/weather every 5 mins
                 if (now - lastLocationUpdate.current > 300000) { 
@@ -712,7 +679,7 @@ const App: React.FC = () => {
                     getWeatherForPoint(dest.lat, dest.lng).then(w => setAheadWeather(w));
                 }
             },
-            () => setGpsStatus('error'),
+            () => {},
             { 
                 enableHighAccuracy: true, 
                 maximumAge: 0, 
@@ -723,14 +690,13 @@ const App: React.FC = () => {
     return () => { 
         window.removeEventListener('deviceorientation', handleOrientation); 
         (window as any).removeEventListener('deviceorientationabsolute', handleAbsoluteOrientation);
-        window.removeEventListener('devicemotion', handleMotion); 
         if (watchId) navigator.geolocation.clearWatch(watchId); 
     };
-  }, [maxSpeed, maxAccelG, maxBrakeG]);
+  }, [maxSpeed]);
 
   const isDark = theme === 'dark';
   const mainBg = "bg-transparent"; 
-  const expandedData = { maxSpeed, tripDistance, weather, aheadWeather, apparentWind, windChill, analysis, maxAccelG, maxBrakeG, stations: nearbyStations };
+  const expandedData = { maxSpeed, tripDistance, weather, aheadWeather, apparentWind, windChill, analysis, stations: nearbyStations };
   const showRainWarning = weather && (weather.rainProb > 20 || weather.rain > 0.1);
   const showAheadWarning = aheadWeather && (aheadWeather.rainProb > 40 && (!weather || weather.rainProb < 20));
 
@@ -826,7 +792,7 @@ const App: React.FC = () => {
         </div>
 
         {/* INFO GRID */}
-        <EnvGrid weather={weather} analysis={analysis} bikeSpeed={speed} bikeHeading={effectiveHeading} tripTime={0} tripDistance={tripDistance} accuracy={accuracy} longitudinalG={longitudinalG} gForce={gForce} radioState={{ isPlaying: radioPlaying, currentStation, stop: handleRadioStop }} isDark={isDark} onExpand={(type: string) => { setExpandedView(type); if(type === 'copilot' && isVoiceEnabled) speak(`${analysis.message}. ${analysis.roadCondition}`); }} btDevice={btDevice} onConnectBt={handleConnectBluetooth} windChill={windChill} apparentWind={apparentWind} isFocusMode={isFocusMode} stations={nearbyStations} />
+        <EnvGrid weather={weather} analysis={analysis} bikeSpeed={speed} bikeHeading={effectiveHeading} tripDistance={tripDistance} radioState={{ isPlaying: radioPlaying, currentStation, stop: handleRadioStop }} isDark={isDark} onExpand={(type: string) => { setExpandedView(type); if(type === 'copilot' && isVoiceEnabled) speak(`${analysis.message}. ${analysis.roadCondition}`); }} btDevice={btDevice} onConnectBt={handleConnectBluetooth} windChill={windChill} apparentWind={apparentWind} isFocusMode={isFocusMode} stations={nearbyStations} />
     </div>
   );
 };
