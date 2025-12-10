@@ -100,33 +100,54 @@ const VisorTrigger = ({ onClick }: { onClick: () => void }) => (
     </button>
 );
 
-const VisorOverlay = ({ windChill, apparentWind, rainProb, onClose, windDir }: any) => {
+const VisorOverlay = ({ windChill, apparentWind, rainProb, onClose, windDir, speed }: any) => {
     return (
-        <div className="fixed inset-0 z-[100] bg-black text-white flex flex-col items-center justify-between p-8 font-mono select-none animate-in fade-in duration-300">
-            <div className="w-full flex justify-between items-start">
+        <div className="fixed inset-0 z-[100] bg-black text-white flex flex-col items-center justify-between p-6 sm:p-8 font-mono select-none animate-in fade-in duration-300">
+            {/* Top Bar */}
+            <div className="w-full flex justify-between items-start z-50">
                 <div className="text-neon-green flex flex-col">
-                    <span className="text-xs uppercase tracking-[0.2em] text-white/50">VİZÖR MODU</span>
-                    <Clock className="text-green-400 mt-2 animate-pulse" />
+                    <span className="text-[10px] uppercase tracking-[0.2em] text-white/50">VİZÖR MODU</span>
+                    <div className="flex items-center gap-2 mt-1">
+                        <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                        <span className="text-xs font-bold text-white/80">CANLI</span>
+                    </div>
                 </div>
-                <button onClick={onClose} className="p-4 bg-white/10 rounded-full active:bg-white/30 transition-colors"><X size={32} className="text-white" /></button>
+                <button onClick={onClose} className="p-3 bg-white/10 rounded-full active:bg-white/30 transition-colors"><X size={24} className="text-white" /></button>
             </div>
-            <div className="flex flex-col items-center justify-center flex-1 w-full gap-4">
-                <div className="flex flex-col items-center">
-                    <span className="text-[25vw] sm:text-[12rem] font-black leading-none text-green-400 drop-shadow-[0_0_20px_rgba(74,222,128,0.5)] tracking-tighter">{windChill}°</span>
-                    <span className="text-2xl font-bold uppercase tracking-widest text-green-200/80 mt-[-10px]">Hissedilen</span>
+
+            {/* Center Content: Speed & Temp */}
+            <div className="flex flex-col items-center justify-center flex-1 w-full gap-0 -mt-8">
+                {/* BIG SPEED */}
+                <div className="flex flex-col items-center justify-center">
+                    <span className="text-[40vw] sm:text-[15rem] font-['Chakra_Petch'] font-black leading-[0.85] text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.3)] tracking-tighter">
+                        {Math.round(speed)}
+                    </span>
+                    <span className="text-sm sm:text-lg font-bold uppercase tracking-[0.5em] text-white/40 mt-2">KM/H</span>
+                </div>
+
+                {/* Secondary Info: Wind Chill */}
+                <div className="flex items-center gap-4 mt-8 px-6 py-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+                    <div className="flex flex-col items-end border-r border-white/10 pr-4">
+                        <span className="text-3xl font-bold text-green-400 leading-none">{windChill}°</span>
+                        <span className="text-[10px] uppercase tracking-wide text-white/50">HİSSEDİLEN</span>
+                    </div>
+                    <div className="flex flex-col items-start">
+                        <span className="text-3xl font-bold text-cyan-400 leading-none">{apparentWind}</span>
+                        <span className="text-[10px] uppercase tracking-wide text-white/50">RÜZGAR (KM)</span>
+                    </div>
                 </div>
             </div>
-            <div className="w-full grid grid-cols-2 gap-8 mb-8">
-                <div className="flex flex-col items-start border-l-4 border-cyan-400 pl-6">
-                    <div className="flex items-center gap-3 mb-1"><Wind className="text-cyan-400" size={32} /><span className="text-4xl font-bold text-white">{apparentWind}</span></div>
-                    <span className="text-sm font-bold text-cyan-400/80 uppercase tracking-widest">Rüzgar (km/s)</span>
-                    <div className="mt-2 flex items-center gap-2 text-white/50 text-xs"><Navigation size={12} style={{transform: `rotate(${windDir}deg)`}}/> YÖN</div>
-                </div>
-                <div className="flex flex-col items-end border-r-4 border-rose-500 pr-6 text-right">
-                    <div className="flex items-center justify-end gap-3 mb-1"><span className={`text-4xl font-bold ${rainProb > 0 ? 'text-rose-400' : 'text-white'}`}>%{rainProb}</span><Umbrella className={rainProb > 0 ? "text-rose-400" : "text-white/30"} size={32} /></div>
-                    <span className="text-sm font-bold text-rose-400/80 uppercase tracking-widest">Yağış Riski</span>
-                    <div className="mt-2 text-white/50 text-xs">{rainProb > 20 ? "DİKKAT KAYGAN ZEMİN" : "ZEMİN KURU"}</div>
-                </div>
+
+            {/* Bottom Grid */}
+            <div className="w-full grid grid-cols-2 gap-4">
+                 <div className="flex items-center justify-start gap-2 opacity-60">
+                     <Navigation size={16} style={{transform: `rotate(${windDir}deg)`}}/>
+                     <span className="text-xs font-bold uppercase">RÜZGAR YÖNÜ</span>
+                 </div>
+                 <div className="flex items-center justify-end gap-2">
+                     <Umbrella size={16} className={rainProb > 0 ? "text-rose-400" : "text-white/30"} />
+                     <span className={`text-xs font-bold uppercase ${rainProb > 0 ? "text-rose-400" : "text-white/30"}`}>YAĞIŞ %{rainProb}</span>
+                 </div>
             </div>
         </div>
     );
@@ -266,8 +287,8 @@ const DigitalClock = ({ toggleTheme, batteryLevel, btDevice, onConnectBt, isFocu
 
 const DigitalSpeedDisplay = ({ speed, onClick }: any) => (
     <div onClick={onClick} className="relative flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform duration-300 ios-ease z-20 w-full">
-        {/* SPORTY FONT "Chakra Petch" AND LARGER SIZE */}
-        <h1 className="text-[35vw] sm:text-[25vw] lg:text-[18rem] font-['Chakra_Petch'] font-bold leading-[0.8] tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-slate-100 to-slate-400 drop-shadow-[0_0_50px_rgba(255,255,255,0.25)] italic">
+        {/* SPORTY FONT "Chakra Petch" - NON ITALIC - EVEN LARGER (42vw) */}
+        <h1 className="text-[42vw] sm:text-[30vw] lg:text-[22rem] font-['Chakra_Petch'] font-black leading-[0.75] tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-slate-100 to-slate-400 drop-shadow-[0_0_50px_rgba(255,255,255,0.25)]">
             {Math.round(speed)}
         </h1>
         <div className="mt-4 px-5 py-2 rounded-full border border-white/10 bg-black/40 backdrop-blur-md flex items-center gap-2">
@@ -369,8 +390,6 @@ const App: React.FC = () => {
   const isFocusMode = speed > 100;
 
   // DYNAMIC ANIMATION SPEED CALCULATION
-  // Default (stop/slow) = 100s. Fast = 0.5s.
-  // Formula: As speed increases, duration decreases.
   const animDuration = speed < 2 ? '100s' : `${Math.max(0.2, 50 / speed)}s`;
 
   // Bluetooth Logic
@@ -555,7 +574,7 @@ const App: React.FC = () => {
         <audio ref={audioRef} onError={() => setRadioPlaying(false)} onEnded={() => setRadioPlaying(false)} className="hidden" preload="none" />
         <CalibrationModal isOpen={showCalibration} onClose={() => setShowCalibration(false)} offset={compassOffset} />
         {expandedView && <DetailOverlay type={expandedView} data={expandedData} onClose={handleCloseModal} theme={theme} radioHandlers={{ isPlaying: radioPlaying, currentStation: currentStation, play: handleRadioPlay, stop: handleRadioStop }} />}
-        {isVisorMode && <VisorOverlay windChill={windChill} apparentWind={apparentWind} rainProb={weather?.rainProb || 0} onClose={() => setIsVisorMode(false)} windDir={(weather?.windDirection || 0) - effectiveHeading + 180} />}
+        {isVisorMode && <VisorOverlay windChill={windChill} apparentWind={apparentWind} rainProb={weather?.rainProb || 0} onClose={() => setIsVisorMode(false)} windDir={(weather?.windDirection || 0) - effectiveHeading + 180} speed={speed} />}
 
         <div className={`flex justify-between items-start px-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-2 z-20 shrink-0 transition-opacity duration-700 ${isFocusMode ? 'opacity-20 hover:opacity-100' : 'opacity-100'}`}>
              <div className="flex flex-col gap-4">

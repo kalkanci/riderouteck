@@ -14,7 +14,7 @@
     <!-- Sporty Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,300;0,400;0,700;0,900;1,700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,300;0,400;0,500;0,600;0,700;0,900;1,700&display=swap" rel="stylesheet">
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -44,30 +44,30 @@
         width: 100%;
         height: 100%;
         overflow: hidden;
-        background: radial-gradient(circle at 50% 0%, #1a1a2e 0%, #000000 70%);
+        background: radial-gradient(circle at 50% 0%, #0f172a 0%, #000000 60%);
         z-index: 0;
       }
 
       .road-plane {
         position: absolute;
-        bottom: -50vh;
+        bottom: -20vh; /* Started higher up */
         left: 50%;
-        width: 200vw;
-        height: 100vh;
-        /* Updated Perspective: rotateX changed from 80deg to 60deg for a higher view */
-        transform: translateX(-50%) perspective(300px) rotateX(60deg);
+        width: 300vw; /* Wider to cover edges */
+        height: 150vh;
+        /* High Camera Perspective: rotated to look flatter/higher */
+        transform: translateX(-50%) perspective(200px) rotateX(75deg);
         background: 
             /* Center Line */
-            linear-gradient(90deg, transparent 49.5%, rgba(255, 255, 255, 0.4) 49.5%, rgba(255, 255, 255, 0.4) 50.5%, transparent 50.5%),
+            linear-gradient(90deg, transparent 49.5%, rgba(255, 255, 255, 0.5) 49.5%, rgba(255, 255, 255, 0.5) 50.5%, transparent 50.5%),
             /* Lane Markers */
-            linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px),
             /* Asphalt Texture */
-            linear-gradient(0deg, transparent 0%, rgba(0,0,0,0.8) 100%),
+            linear-gradient(0deg, transparent 0%, rgba(0,0,0,0.9) 100%),
             #0a0a0a;
-        background-size: 100% 100%, 20% 100%, 100% 100%, 100% 100%;
-        /* Animation mask to simulate movement */
-        -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20%);
-        mask-image: linear-gradient(to bottom, transparent 0%, black 20%);
+        background-size: 100% 100%, 15% 100%, 100% 100%, 100% 100%;
+        /* Fade out at top */
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%);
+        mask-image: linear-gradient(to bottom, transparent 0%, black 15%);
       }
 
       .moving-grid {
@@ -75,39 +75,33 @@
         top: 0;
         left: 0;
         width: 100%;
-        height: 200%; /* Double height for looping */
+        height: 200%;
         background: 
-            linear-gradient(0deg, rgba(255,255,255,0.05) 1px, transparent 1px);
-        background-size: 100% 100px;
-        /* Dynamic animation duration handled via JS variable --anim-duration */
+            linear-gradient(0deg, rgba(255,255,255,0.1) 1px, transparent 1px);
+        background-size: 100% 150px; /* Larger segments for speed feel */
         animation: roadMove var(--anim-duration, 100s) linear infinite;
         will-change: transform;
       }
 
       @keyframes roadMove {
         from { transform: translateY(0); }
-        to { transform: translateY(50%); } /* Move half (100% of original height) */
+        to { transform: translateY(50%); }
       }
 
-      /* Horizon Glow */
+      /* Horizon Glow - Moved much higher (15%) */
       .horizon-glow {
         position: absolute;
-        top: 35%; /* Adjusted for higher perspective */
+        top: 15%; 
         left: 0;
         width: 100%;
-        height: 1px;
-        box-shadow: 0 0 100px 40px rgba(56, 189, 248, 0.15);
+        height: 2px;
+        box-shadow: 0 0 120px 60px rgba(6, 182, 212, 0.2);
         z-index: 0;
       }
 
-      /* No Scrollbar */
       .no-scrollbar::-webkit-scrollbar { display: none; }
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-      /* iOS-like Spring Easing */
-      .ios-ease {
-        transition-timing-function: cubic-bezier(0.25, 0.8, 0.25, 1);
-      }
+      .ios-ease { transition-timing-function: cubic-bezier(0.25, 0.8, 0.25, 1); }
     </style>
   <script type="importmap">
 {
