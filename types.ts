@@ -31,28 +31,10 @@ export interface CoPilotAnalysis {
   color: string;
 }
 
-// Real Spotify Types
-export interface SpotifyTrack {
+export interface RadioStation {
   id: string;
   name: string;
-  artists: { name: string }[];
-  album: { images: { url: string }[] };
-  duration_ms: number;
-  uri: string;
-}
-
-export interface SpotifyPlaylist {
-  id: string;
-  name: string;
-  images: { url: string }[];
-  uri: string;
-}
-
-export interface SpotifyPlayerState {
-  paused: boolean;
-  position: number;
-  duration: number;
-  track_window: {
-    current_track: SpotifyTrack;
-  };
+  category: string;
+  streamUrl: string;
+  color: string;
 }

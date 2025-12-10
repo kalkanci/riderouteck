@@ -1,7 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, Navigation, Umbrella, Download, X, Battery, Shield, ShieldAlert, ShieldCheck, Bluetooth, Music, Headphones, Radar, ThermometerSnowflake, Glasses, Map, Play, Pause, SkipForward, SkipBack, User, Shuffle, Repeat, ArrowUp } from 'lucide-react';
-import { WeatherData, CoPilotAnalysis, StationData, SpotifyTrack, SpotifyPlaylist, SpotifyPlayerState } from './types';
+import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, Navigation, Umbrella, Download, X, Battery, Shield, ShieldAlert, ShieldCheck, Bluetooth, Music, Headphones, Radar, ThermometerSnowflake, Glasses, Map, Play, Pause, SkipForward, SkipBack, User, Shuffle, Repeat, ArrowUp, ArrowDown, Radio, Signal, MapPin, Droplets, Navigation2 } from 'lucide-react';
+import { WeatherData, CoPilotAnalysis, StationData, RadioStation } from './types';
 import { getWeatherForPoint, reverseGeocode, getNearbyStations } from './services/api';
+
+// --- RADIO STATIONS DATA ---
+const RADIO_STATIONS: RadioStation[] = [
+    { id: '1', name: 'Power FM', category: 'Yabancı Pop', streamUrl: 'https://listen.powerapp.com.tr/powerfm/mpeg/icecast.audio', color: 'bg-red-600' },
+    { id: '2', name: 'Power Türk', category: 'Türkçe Pop', streamUrl: 'https://listen.powerapp.com.tr/powerturk/mpeg/icecast.audio', color: 'bg-red-700' },
+    { id: '3', name: 'Fenomen', category: 'Hit Müzik', streamUrl: 'https://listen.radyofenomen.com/fenomen/128/icecast.audio', color: 'bg-purple-600' },
+    { id: '4', name: 'Fenomen Türk', category: 'Türkçe Hit', streamUrl: 'https://listen.radyofenomen.com/fenomenturk/128/icecast.audio', color: 'bg-purple-700' },
+    { id: '5', name: 'Metro FM', category: 'Yabancı Hit', streamUrl: 'https://stream.karnaval.com/metrofm', color: 'bg-blue-600' },
+    { id: '6', name: 'Joy Türk', category: 'Slow Türkçe', streamUrl: 'https://stream.karnaval.com/joyturk', color: 'bg-orange-500' },
+    { id: '7', name: 'Virgin Radio', category: 'Yabancı Pop', streamUrl: 'https://stream.karnaval.com/virginradio', color: 'bg-red-500' },
+    { id: '8', name: 'Number 1', category: 'Hit', streamUrl: 'https://n10101m.mediatriple.net/numberoneturk', color: 'bg-blue-500' },
+    { id: '9', name: 'Kral Pop', category: 'Türkçe Pop', streamUrl: 'https://moondigitalv2.radyotvonline.net/kralpop/playlist.m3u8', color: 'bg-orange-600' },
+    { id: '10', name: 'Alem FM', category: 'Türkçe Pop', streamUrl: 'https://turkmedya.radyotvonline.com/turkmedya/alemfm.stream/playlist.m3u8', color: 'bg-cyan-600' },
+    { id: '11', name: 'Best FM', category: 'Türkçe', streamUrl: 'https://bestfm.radyotvonline.net/bestfm/playlist.m3u8', color: 'bg-blue-800' },
+    { id: '12', name: 'Show Radyo', category: 'Türkçe Pop', streamUrl: 'https://showradyo.radyotvonline.net/showradyo/playlist.m3u8', color: 'bg-yellow-500' },
+];
 
 // --- MATH UTILS ---
 const toRad = (deg: number) => deg * Math.PI / 180;
@@ -80,21 +96,23 @@ const analyzeConditions = (weather: WeatherData | null): CoPilotAnalysis => {
     return { status: 'danger', message: msgs.join(" ve ") || "Tehlikeli Koşullar", roadCondition: "Yavaşla", color: "text-rose-600" };
 };
 
-const formatTime = (ms: number) => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = Math.floor(totalSeconds % 60);
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-};
-
 // --- SUB COMPONENTS ---
 
 const WindRadar = ({ windSpeed, apparentWind, windDirection, bikeHeading, windChill }: any) => {
-    // Relatif rüzgar açısını hesapla (Motosikletin burnu hep 0 derece/yukarı)
-    // windDirection (Rüzgarın geldiği yön) - bikeHeading
+    // Relative angle: Where wind comes FROM relative to bike nose (0deg)
+    // Formula: (WindDir - BikeHeading + 180) % 360 puts the source in correct position relative to "Up"
     const relativeWindAngle = (windDirection - bikeHeading + 180) % 360;
     
-    // Renk skalası
+    // Determine impact direction for text
+    const getImpactText = (angle: number) => {
+        if (angle >= 315 || angle < 45) return "ÖNDEN ESİYOR";
+        if (angle >= 45 && angle < 135) return "SAĞDAN ESİYOR";
+        if (angle >= 135 && angle < 225) return "ARKADAN ESİYOR";
+        return "SOLDAN ESİYOR";
+    };
+
+    const impactText = getImpactText(relativeWindAngle);
+
     const getColor = (speed: number) => {
         if (speed < 15) return "text-emerald-400";
         if (speed < 30) return "text-amber-400";
@@ -102,52 +120,90 @@ const WindRadar = ({ windSpeed, apparentWind, windDirection, bikeHeading, windCh
     };
 
     const colorClass = getColor(apparentWind);
+    const isHighWind = apparentWind > 25;
 
     return (
-        <div className="relative flex flex-col items-center justify-center w-full h-full min-h-[140px]">
-            {/* Outer Compass Ring */}
-            <div className="absolute inset-0 rounded-full border border-white/5 bg-gradient-to-b from-white/5 to-transparent"></div>
-            
-            {/* Direction Indicators */}
-            <div className="absolute top-2 text-[10px] font-bold text-white/30">ÖN</div>
-            <div className="absolute bottom-2 text-[10px] font-bold text-white/30">ARKA</div>
-            
-            {/* Central Bike Icon (Fixed) */}
-            <div className="absolute z-10 p-2 bg-[#1c1c1e] rounded-full border border-white/10 shadow-lg">
-                <Navigation size={20} className="text-white fill-white/20" />
+        <div className="relative flex flex-col items-center justify-between w-full h-full p-2 overflow-hidden">
+            {/* Background Grids */}
+            <div className="absolute inset-0 flex items-center justify-center opacity-10">
+                <div className="w-full h-px bg-white"></div>
+                <div className="h-full w-px bg-white absolute"></div>
             </div>
 
-            {/* Wind Arrow (Rotates) */}
-            <div 
-                className="absolute inset-0 flex items-center justify-center transition-transform duration-700 ease-out"
-                style={{ transform: `rotate(${relativeWindAngle}deg)` }}
-            >
-                {/* Arrow pointing IN towards center (wind source) */}
-                <div className="absolute top-4 flex flex-col items-center">
-                    <ArrowUp size={24} className={`${colorClass} animate-pulse`} />
-                    <div className={`h-8 w-1 bg-gradient-to-b from-${colorClass.split('-')[1]}-500/0 to-${colorClass.split('-')[1]}-500/50 rounded-full`}></div>
+            {/* Main Visual */}
+            <div className="flex-1 w-full relative flex items-center justify-center">
+                 {/* Bike Icon (Fixed Center) */}
+                <div className="absolute z-10 p-2 bg-[#18181b] rounded-full border border-white/20 shadow-[0_0_15px_rgba(0,0,0,0.8)]">
+                    <Navigation2 size={24} className="text-white fill-white stroke-[3px]" />
+                </div>
+                
+                {/* Wind Flow Indicators (Rotating) */}
+                <div 
+                    className="absolute inset-0 flex items-center justify-center transition-transform duration-700 ease-out"
+                    style={{ transform: `rotate(${relativeWindAngle}deg)` }}
+                >
+                    {/* The "Source" Arrow */}
+                    <div className="absolute -top-4 flex flex-col items-center gap-1">
+                         <div className={`w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[12px] ${apparentWind > 25 ? 'border-t-rose-500 animate-pulse' : 'border-t-cyan-400'}`}></div>
+                         <div className={`w-0.5 h-6 bg-gradient-to-b ${apparentWind > 25 ? 'from-rose-500' : 'from-cyan-400'} to-transparent opacity-50`}></div>
+                    </div>
+
+                    {/* Streamlines representing wind hitting the bike */}
+                    <div className="absolute -top-1 w-20 h-20 opacity-30 animate-pulse">
+                         <div className={`w-full h-full border-t-4 rounded-full ${colorClass}`} style={{ clipPath: 'polygon(0 0, 100% 0, 50% 50%)'}}></div>
+                    </div>
                 </div>
             </div>
 
-            {/* Stats Overlay */}
-            <div className="absolute -bottom-1 -right-1 flex flex-col items-end">
-                 <div className="text-2xl font-bold text-white leading-none tabular-nums">{apparentWind}</div>
-                 <div className="text-[9px] font-bold text-white/40 uppercase">Rüzgar Km/h</div>
+            {/* Impact Text */}
+            <div className="absolute top-2 w-full text-center">
+                <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-black/40 border ${isHighWind ? 'border-rose-500/50 text-rose-400' : 'border-white/10 text-white/60'}`}>
+                    {impactText}
+                </span>
             </div>
-             <div className="absolute -bottom-1 -left-1 flex flex-col items-start">
-                 <div className={`text-2xl font-bold leading-none tabular-nums ${windChill < 10 ? 'text-cyan-400' : 'text-white'}`}>{windChill}°</div>
-                 <div className="text-[9px] font-bold text-white/40 uppercase">Hissedilen</div>
+
+            {/* Data Footer */}
+            <div className="w-full flex justify-between items-end z-20 mt-1 px-1">
+                 <div className="flex flex-col items-start">
+                     <div className={`text-3xl font-bold leading-none tabular-nums tracking-tighter ${colorClass} drop-shadow-lg`}>{apparentWind}</div>
+                     <div className="text-[9px] font-bold text-white/40 uppercase tracking-wider">KM/S</div>
+                 </div>
+                 <div className="flex flex-col items-end">
+                     <div className={`text-xl font-bold leading-none tabular-nums ${windChill < 10 ? 'text-cyan-300' : 'text-white'}`}>{windChill}°</div>
+                     <div className="text-[9px] font-bold text-white/40 uppercase tracking-wider">HİSSEDİLEN</div>
+                 </div>
             </div>
         </div>
     );
 };
 
 const VisorTrigger = ({ onClick }: { onClick: () => void }) => (
-    <button onClick={onClick} className="group relative flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 overflow-hidden transition-all duration-300 active:scale-95 hover:bg-white/10 hover:border-cyan-500/30 hover:shadow-[0_0_30px_rgba(6,182,212,0.2)]">
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/10 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-1000" />
-        <Glasses size={18} className="text-cyan-400 group-hover:scale-110 transition-transform duration-300" />
-        <span className="text-xs font-bold text-white/90 tracking-[0.2em] uppercase">VİZÖR</span>
+    <button onClick={onClick} className="group relative flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 overflow-hidden transition-all duration-300 active:scale-95 hover:bg-white/10">
+        <Glasses size={16} className="text-cyan-400" />
+        <span className="text-xs font-bold text-white/90 tracking-widest uppercase">VİZÖR</span>
     </button>
+);
+
+const CompactRadioPlayer = ({ station, isPlaying, onToggle, onExpand }: any) => (
+    <div onClick={onExpand} className="mx-6 mt-1 mb-2 bg-[#18181b]/80 backdrop-blur-md rounded-2xl p-2 flex items-center gap-3 border border-white/10 active:scale-95 transition-all shadow-lg animate-in slide-in-from-top-2">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-inner ${station ? station.color : 'bg-white/5'}`}>
+            <Radio size={18} className="text-white" />
+        </div>
+        <div className="flex-1 min-w-0 flex flex-col justify-center">
+            <div className="text-xs font-bold text-white truncate">{station ? station.name : "Radyo Kapalı"}</div>
+            <div className="text-[10px] text-white/50 truncate flex items-center gap-1">
+                {station && isPlaying && <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>}
+                {station ? (isPlaying ? "Çalıyor..." : "Duraklatıldı") : "Bir istasyon seçin"}
+            </div>
+        </div>
+        {station ? (
+            <button onClick={(e) => { e.stopPropagation(); onToggle(); }} className="w-9 h-9 bg-white text-black rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-lg">
+                {isPlaying ? <Pause size={16} fill="black" /> : <Play size={16} fill="black" className="ml-0.5" />}
+            </button>
+        ) : (
+            <div className="mr-2 text-white/20"><SkipForward size={16} /></div>
+        )}
+    </div>
 );
 
 const VisorOverlay = ({ windChill, apparentWind, rainProb, onClose, windDir, speed }: any) => {
@@ -165,7 +221,6 @@ const VisorOverlay = ({ windChill, apparentWind, rainProb, onClose, windDir, spe
                 <button onClick={onClose} className="p-3 bg-white/10 rounded-full active:bg-white/30 transition-colors"><X size={24} className="text-white" /></button>
             </div>
 
-            {/* Center Content: Speed & Temp */}
             <div className="flex flex-col items-center justify-center flex-1 w-full gap-0 -mt-8">
                 <div className="flex flex-col items-center justify-center">
                     <span className="text-[40vw] sm:text-[15rem] font-['Chakra_Petch'] font-black leading-[0.85] text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.3)] tracking-tighter">
@@ -198,172 +253,94 @@ const VisorOverlay = ({ windChill, apparentWind, rainProb, onClose, windDir, spe
     );
 };
 
-const DetailOverlay = ({ type, data, onClose, musicHandlers, spotifyUser, onSpotifyLogin, onSpotifyLogout, clientId, setClientId, playlists, onPlayPlaylist }: any) => {
+const DetailOverlay = ({ type, data, onClose, radioHandlers }: any) => {
     if (!type) return null;
 
-    const currentTrack = musicHandlers.currentTrack;
-    const progress = musicHandlers.progress;
-    const isPaused = musicHandlers.isPaused;
-
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/90 backdrop-blur-3xl transition-all duration-500 ios-ease" onClick={onClose}>
-            <div className={`w-full ${type === 'spotify' ? 'h-full sm:h-auto sm:max-w-md sm:aspect-[9/18]' : 'max-w-md max-h-[85vh]'} sm:rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden bg-[#121214] border-x sm:border border-white/10 text-white transform transition-all duration-500 ios-ease animate-in fade-in zoom-in-95 slide-in-from-bottom-8 relative`} onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md transition-all duration-300" onClick={onClose}>
+            <div className={`w-full max-w-sm ${type === 'radio' ? 'h-auto max-h-[70vh]' : 'h-auto max-h-[85vh]'} rounded-3xl shadow-2xl flex flex-col overflow-hidden bg-[#18181b] border border-white/10 text-white transform transition-all duration-300 animate-in fade-in zoom-in-95`} onClick={e => e.stopPropagation()}>
                 
-                {/* Close Button Overlay */}
-                <button onClick={onClose} className="absolute top-6 right-6 z-50 p-2 rounded-full bg-black/20 hover:bg-white/10 text-white transition-colors"><X size={24} /></button>
+                {/* Header */}
+                <div className="p-4 flex justify-between items-center shrink-0 border-b border-white/5 bg-white/5">
+                    <h2 className="text-base font-bold tracking-tight flex items-center gap-2 text-white/90">
+                         {type === 'radio' && <><Radio size={18} className="text-cyan-400"/> <span>Radyo Listesi</span></>}
+                         {type === 'ahead' && <><Navigation size={18} className="text-emerald-400"/> <span>Rota Tahmini (10km)</span></>}
+                         {type === 'weather' && <><Cloud size={18} className="text-blue-400"/> <span>Hava Detayı</span></>}
+                         {type === 'copilot' && <><ShieldCheck size={18} className="text-amber-400"/> <span>Co-Pilot Analizi</span></>}
+                         {type === 'speed' && <><Navigation size={18} className="text-purple-400"/> <span>Sürüş Özeti</span></>}
+                    </h2>
+                    <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10 text-white/70 hover:text-white transition-colors"><X size={20} /></button>
+                </div>
                 
-                {type !== 'spotify' && (
-                    <div className="p-5 flex justify-between items-center shrink-0 border-b border-white/5 mt-8 sm:mt-0">
-                        <h2 className="text-lg font-bold tracking-tight flex items-center gap-2 text-white/90">
-                             <span>{type === 'speed' ? 'Sürüş Özeti' : type === 'weather' ? 'Detaylı Hava Durumu' : type === 'copilot' ? 'Taktiksel Analiz' : 'Çevre İstasyonlar'}</span>
-                        </h2>
-                    </div>
-                )}
-                
-                <div className={`flex-1 overflow-y-auto no-scrollbar ${type === 'spotify' ? 'p-0' : 'p-6'}`}>
-                     {type === 'spotify' && (
-                        <div className="flex flex-col h-full bg-[#121214] relative">
-                             {/* Background Blur */}
-                             {currentTrack && (
-                                <div className="absolute inset-0 z-0">
-                                    <div className="absolute inset-0 bg-cover bg-center opacity-40 blur-3xl scale-125" style={{backgroundImage: `url(${currentTrack.album.images[0]?.url})`}}></div>
-                                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#121214]/80 to-[#121214]"></div>
-                                </div>
-                             )}
-
-                            {!spotifyUser.isLoggedIn ? (
-                                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-6 animate-in fade-in relative z-10">
-                                    <div className="w-20 h-20 bg-[#1DB954] rounded-full flex items-center justify-center shadow-[0_0_50px_rgba(29,185,84,0.3)] mb-4">
-                                        <Music size={40} className="text-black" />
-                                    </div>
-                                    <h2 className="text-2xl font-bold">Spotify Bağlanıyor...</h2>
-                                    <p className="text-white/60 max-w-xs">Giriş yapmanız bekleniyor. Eğer pencere açılmazsa butona tıklayın.</p>
-                                    <button 
-                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSpotifyLogin(); }}
-                                        className="w-full max-w-xs py-4 bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold rounded-full text-base transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-green-500/20"
-                                    >
-                                        Tekrar Dene
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="relative z-10 flex flex-col h-full pt-16 px-8 pb-8">
-                                    {/* Album Art Area */}
-                                    <div className="flex-1 flex flex-col items-center justify-center min-h-[300px]">
-                                        {currentTrack ? (
-                                            <div className="w-full aspect-square max-w-[340px] rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden group border border-white/5">
-                                                 <img src={currentTrack.album.images[0]?.url} alt="Cover" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                                                 {isPaused && <div className="absolute inset-0 bg-black/40 flex items-center justify-center backdrop-blur-[2px]"><Play size={64} fill="white" className="text-white opacity-80" /></div>}
-                                            </div>
-                                        ) : (
-                                            <div className="w-full aspect-square max-w-[320px] bg-white/5 rounded-2xl flex items-center justify-center border border-white/5">
-                                                <Music size={64} className="text-white/20" />
-                                            </div>
-                                        )}
-                                        
-                                        {/* Track Info Large */}
-                                        <div className="mt-8 text-center w-full">
-                                            <h2 className="text-3xl font-bold leading-tight truncate px-4">{currentTrack ? currentTrack.name : "Müzik Bekleniyor"}</h2>
-                                            <p className="text-white/60 text-xl truncate mt-2 font-medium">{currentTrack ? currentTrack.artists[0]?.name : "Çalmak için listeye tıkla"}</p>
-                                        </div>
-                                    </div>
-
-                                    {/* Smooth Progress Bar */}
-                                    <div className="w-full mb-8 group cursor-pointer pt-4">
-                                        <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-                                            <div className="h-full bg-white rounded-full relative transition-all duration-100 ease-linear" style={{width: `${currentTrack ? (progress / currentTrack.duration_ms) * 100 : 0}%`}}>
-                                                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                            </div>
-                                        </div>
-                                        <div className="flex justify-between text-xs font-bold text-white/30 mt-2 font-mono">
-                                            <span>{formatTime(progress)}</span>
-                                            <span>{currentTrack ? formatTime(currentTrack.duration_ms) : "0:00"}</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Controls Large */}
-                                    <div className="flex items-center justify-between mb-10 px-4">
-                                        <button className="text-white/40 hover:text-white transition-colors p-2"><Shuffle size={24} /></button>
-                                        <button onClick={musicHandlers.prev} className="text-white hover:text-[#1DB954] transition-colors active:scale-90 p-2"><SkipBack size={40} fill="currentColor" /></button>
-                                        <button onClick={musicHandlers.togglePlay} className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-black hover:scale-105 active:scale-95 transition-all shadow-[0_0_30px_rgba(255,255,255,0.2)]">
-                                            {isPaused ? <Play size={40} fill="black" className="ml-1" /> : <Pause size={40} fill="black" />}
-                                        </button>
-                                        <button onClick={musicHandlers.next} className="text-white hover:text-[#1DB954] transition-colors active:scale-90 p-2"><SkipForward size={40} fill="currentColor" /></button>
-                                        <button className="text-white/40 hover:text-white transition-colors p-2"><Repeat size={24} /></button>
-                                    </div>
-
-                                    {/* Playlist Selector (Collapsed at bottom) */}
-                                    <div className="flex-1 min-h-0 flex flex-col gap-3">
-                                        <div className="text-xs font-bold text-white/30 uppercase tracking-widest pl-1">Kitaplığın</div>
-                                        <div className="overflow-y-auto no-scrollbar -mx-2 px-2 pb-4 space-y-2 max-h-[150px]">
-                                            {playlists.map((pl: SpotifyPlaylist) => (
-                                                <button key={pl.id} onClick={() => onPlayPlaylist(pl.uri)} className="w-full flex items-center gap-4 p-3 rounded-xl hover:bg-white/10 transition-all border border-transparent hover:border-white/5 group">
-                                                    <img src={pl.images[0]?.url || ""} className="w-12 h-12 rounded-lg object-cover opacity-80 group-hover:opacity-100 transition-opacity" alt="" />
-                                                    <div className="flex flex-col items-start flex-1 min-w-0">
-                                                        <span className="text-sm font-bold truncate w-full text-left text-white/90 group-hover:text-white">{pl.name}</span>
-                                                        <span className="text-[10px] text-white/40 uppercase tracking-wide">Çalma Listesi</span>
-                                                    </div>
-                                                    <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
-                                                        <Play size={14} fill="white" className="ml-0.5" />
-                                                    </div>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+                <div className={`flex-1 overflow-y-auto no-scrollbar ${type === 'radio' ? 'p-0' : 'p-4'}`}>
+                     {type === 'radio' && (
+                        <div className="flex flex-col bg-[#121214]">
+                             <div className="flex-1 overflow-y-auto no-scrollbar space-y-1 p-2">
+                                 {RADIO_STATIONS.map((station) => (
+                                     <button 
+                                        key={station.id} 
+                                        onClick={() => { radioHandlers.playStation(station); onClose(); }}
+                                        className={`w-full p-3 rounded-xl border transition-all flex items-center gap-3 group ${radioHandlers.currentStation?.id === station.id ? 'bg-white/10 border-white/20' : 'bg-transparent border-transparent hover:bg-white/5'}`}
+                                     >
+                                         <div className={`w-10 h-10 rounded-lg ${station.color} flex items-center justify-center text-white font-bold shadow-lg shrink-0`}>
+                                             {station.name.substring(0,1)}
+                                         </div>
+                                         <div className="flex flex-col items-start flex-1 min-w-0">
+                                             <span className={`text-sm font-bold truncate w-full text-left ${radioHandlers.currentStation?.id === station.id ? 'text-white' : 'text-white/80'}`}>{station.name}</span>
+                                             <span className="text-[10px] text-white/40">{station.category}</span>
+                                         </div>
+                                         {radioHandlers.currentStation?.id === station.id && radioHandlers.isPlaying && (
+                                              <div className="flex gap-[2px] items-end h-3 mr-2">
+                                                 <span className="w-[2px] bg-cyan-400 animate-[bounce_1s_infinite]"></span>
+                                                 <span className="w-[2px] bg-cyan-400 animate-[bounce_1.5s_infinite]"></span>
+                                                 <span className="w-[2px] bg-cyan-400 animate-[bounce_0.8s_infinite]"></span>
+                                              </div>
+                                         )}
+                                     </button>
+                                 ))}
+                             </div>
                         </div>
                      )}
-                     {type === 'copilot' && <div className="p-6 bg-gradient-to-br from-white/10 to-white/5 border border-white/10 rounded-3xl"><p className="text-lg font-medium leading-relaxed text-white/90">{data.analysis.message}</p><p className="mt-2 text-sm text-white/50">{data.analysis.roadCondition}</p></div>}
+                     {type === 'copilot' && <div className="p-4 bg-white/5 border border-white/10 rounded-2xl"><p className="text-base font-medium leading-relaxed text-white/90">{data.analysis.message}</p><p className="mt-2 text-sm text-white/50">{data.analysis.roadCondition}</p></div>}
                      {type === 'weather' && (
-                         <div className="space-y-4">
-                             <div className="p-6 rounded-3xl bg-white/5 border border-white/10 backdrop-blur-md flex flex-col items-center justify-center text-center">
-                                <h3 className="text-xs font-bold opacity-40 uppercase mb-2 tracking-widest">Anlık Durum</h3>
-                                {getWeatherIcon(data.weather?.weatherCode || 0, 64, true)}
-                                <div className="text-6xl font-thin tracking-tighter mt-2">{Math.round(data.weather?.temp || 0)}°</div>
-                                <div className="text-sm font-medium text-white/60 mt-1 capitalize">Gerçek Sıcaklık</div>
+                         <div className="space-y-3">
+                             <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center text-center">
+                                {getWeatherIcon(data.weather?.weatherCode || 0, 48, true)}
+                                <div className="text-5xl font-thin tracking-tighter mt-2">{Math.round(data.weather?.temp || 0)}°</div>
                              </div>
-                             <div className="p-5 rounded-3xl bg-cyan-500/10 border border-cyan-400/20 backdrop-blur-md flex items-center justify-between">
-                                 <div className="flex flex-col"><span className="text-xs font-bold text-cyan-400 uppercase tracking-widest mb-1">MOTORCU HİSSEDİLEN</span><span className="text-4xl font-light text-white tracking-tighter">{data.windChill}°</span><span className="text-[10px] text-white/50 mt-1">Sürüş Hızı + Rüzgar Etkisi</span></div>
-                                 <div className="text-right"><div className="flex items-center gap-1 justify-end text-white/80"><Wind size={14} /><span className="text-lg font-bold">{data.apparentWind}</span><span className="text-xs">km/s</span></div><span className="text-[10px] text-white/40">Efektif Rüzgar</span></div>
-                             </div>
-                             <div className="p-5 rounded-3xl bg-indigo-500/10 border border-indigo-400/20 relative overflow-hidden backdrop-blur-md mt-2">
-                                <div className="absolute top-0 right-0 p-3 opacity-20"><Radar size={60} className="text-indigo-400"/></div>
-                                <h3 className="text-xs font-bold text-indigo-300 uppercase mb-3 tracking-widest">10 KM İlerisi (Tahmin)</h3>
-                                {data.aheadWeather ? (
-                                    <div className="flex justify-between items-center relative z-10">
-                                        <div className="flex items-center gap-3">{getWeatherIcon(data.aheadWeather?.weatherCode || 0, 32, true)}<span className="text-3xl font-light tracking-tighter">{Math.round(data.aheadWeather?.temp || 0)}°</span></div>
-                                        <div className="text-right space-y-1"><div className={`text-sm font-bold ${data.aheadWeather.rainProb > 20 ? 'text-rose-400' : 'text-white/60'}`}>Yağış %{data.aheadWeather?.rainProb}</div><div className="text-sm font-medium text-white/60">Rüzgar {Math.round(data.aheadWeather?.windSpeed || 0)} km/s</div></div>
-                                    </div>
-                                ) : ( <div className="text-sm opacity-50 italic">Hareket halinde hesaplanacak...</div> )}
+                             <div className="grid grid-cols-2 gap-3">
+                                <div className="p-3 rounded-2xl bg-cyan-500/10 border border-cyan-400/20">
+                                    <div className="text-[10px] font-bold text-cyan-400 uppercase">HİSSEDİLEN</div>
+                                    <div className="text-2xl font-bold">{data.windChill}°</div>
+                                </div>
+                                <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
+                                    <div className="text-[10px] font-bold opacity-50 uppercase">RÜZGAR</div>
+                                    <div className="text-2xl font-bold">{data.apparentWind} <span className="text-xs font-normal">km</span></div>
+                                </div>
                              </div>
                          </div>
                      )}
-                     {type === 'stations' && (
-                         <div className="space-y-3">
-                             {data.stations && data.stations.length > 0 ? (
-                                 data.stations.map((station: StationData, idx: number) => (
-                                     <div key={idx} className="p-4 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between">
-                                         <div className="flex flex-col">
-                                             <div className="flex items-center gap-2"><span className="text-xs font-bold text-cyan-400 uppercase tracking-wide">{station.direction}</span><span className="text-[10px] opacity-40">~10km</span></div>
-                                             <div className="text-base font-bold text-white mt-0.5">{station.name || "Bilinmeyen Bölge"}</div>
-                                         </div>
-                                         <div className="flex items-center gap-4">
-                                             <div className="flex flex-col items-end">{getWeatherIcon(station.weatherCode, 20, true)}<span className="text-xl font-light">{Math.round(station.temp)}°</span></div>
-                                             <div className="w-px h-8 bg-white/10"></div>
-                                             <div className="flex flex-col items-end gap-1 min-w-[50px]">
-                                                 <div className="flex items-center gap-1 text-xs opacity-60"><Wind size={10}/> {Math.round(station.windSpeed)}</div>
-                                                 {station.rainProb > 0 && <div className="flex items-center gap-1 text-xs text-rose-400"><Umbrella size={10}/> %{station.rainProb}</div>}
-                                             </div>
-                                         </div>
-                                     </div>
-                                 ))
-                             ) : ( <div className="p-8 text-center opacity-50">İstasyon verisi yükleniyor...</div> )}
+                     {type === 'ahead' && (
+                         <div className="space-y-4">
+                             <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-900/40 to-emerald-900/10 border border-emerald-500/30 flex flex-col items-center justify-center">
+                                <h3 className="text-emerald-400 text-xs font-bold uppercase tracking-widest mb-2">10 KM Sonra Tahmin</h3>
+                                {data.aheadWeather ? (
+                                    <>
+                                        {getWeatherIcon(data.aheadWeather.weatherCode, 56, true)}
+                                        <div className="text-5xl font-bold tracking-tighter mt-2">{Math.round(data.aheadWeather.temp)}°</div>
+                                        <div className="flex gap-4 mt-2">
+                                            <span className={`text-sm font-bold ${data.aheadWeather.rainProb > 20 ? 'text-blue-300' : 'text-white/50'}`}>%{data.aheadWeather.rainProb} Yağış</span>
+                                            <span className="text-sm font-bold text-white/50">{Math.round(data.aheadWeather.windSpeed)} km/s Rüzgar</span>
+                                        </div>
+                                    </>
+                                ) : ( <span className="text-white/50">Hesaplanıyor...</span> )}
+                             </div>
                          </div>
                      )}
                      {type === 'speed' && (
-                         <div className="grid grid-cols-2 gap-4">
-                             <div className="bg-white/5 border border-white/10 p-5 rounded-3xl"><div className="text-xs font-bold opacity-40 mb-1">MAX HIZ</div><div className="text-3xl font-light tracking-tighter">{Math.round(data.maxSpeed)}</div></div>
-                             <div className="bg-white/5 border border-white/10 p-5 rounded-3xl"><div className="text-xs font-bold opacity-40 mb-1">MESAFE</div><div className="text-3xl font-light tracking-tighter">{data.tripDistance.toFixed(1)} <span className="text-base opacity-50">km</span></div></div>
+                         <div className="grid grid-cols-2 gap-3">
+                             <div className="bg-white/5 border border-white/10 p-4 rounded-2xl"><div className="text-[10px] font-bold opacity-40 mb-1">MAX HIZ</div><div className="text-3xl font-light tracking-tighter">{Math.round(data.maxSpeed)}</div></div>
+                             <div className="bg-white/5 border border-white/10 p-4 rounded-2xl"><div className="text-[10px] font-bold opacity-40 mb-1">MESAFE</div><div className="text-3xl font-light tracking-tighter">{data.tripDistance.toFixed(1)} <span className="text-base opacity-50">km</span></div></div>
                          </div>
                      )}
                 </div>
@@ -374,26 +351,22 @@ const DetailOverlay = ({ type, data, onClose, musicHandlers, spotifyUser, onSpot
 
 const CalibrationModal = ({ isOpen, onClose, offset, setOffset }: any) => {
     if (!isOpen) return null;
-    const [localOffset, setLocalOffset] = useState(offset);
-
-    const handleSave = () => {
-        if (setOffset) setOffset(localOffset);
-        localStorage.setItem('compassOffset', localOffset.toString());
-        onClose();
-    };
-
     return (
-        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6" onClick={onClose}>
-            <div className="bg-[#1c1c1e] border border-white/10 p-6 rounded-3xl w-full max-w-xs text-center" onClick={e => e.stopPropagation()}>
-                <h3 className="text-lg font-bold text-white mb-4">Pusula Kalibrasyonu</h3>
-                <p className="text-xs text-white/50 mb-6">Telefonun yönü ile motosikletin yönü arasındaki açıyı ayarlayın.</p>
-                <div className="flex items-center justify-center gap-4 mb-8">
-                    <button onClick={() => setLocalOffset((p: number) => p - 1)} className="w-12 h-12 flex items-center justify-center bg-white/5 rounded-full hover:bg-white/10 active:scale-95 transition-all"><Navigation size={20} className="-rotate-90 text-white"/></button>
-                    <span className="text-3xl font-mono font-bold w-20 tabular-nums text-white">{localOffset}°</span>
-                    <button onClick={() => setLocalOffset((p: number) => p + 1)} className="w-12 h-12 flex items-center justify-center bg-white/5 rounded-full hover:bg-white/10 active:scale-95 transition-all"><Navigation size={20} className="rotate-90 text-white"/></button>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={onClose}>
+            <div className="bg-[#1e1e20] p-6 rounded-3xl w-full max-w-sm border border-white/10 shadow-2xl" onClick={e => e.stopPropagation()}>
+                <h2 className="text-xl font-bold mb-4">Pusula Kalibrasyonu</h2>
+                <div className="flex items-center justify-between mb-6 bg-black/20 p-4 rounded-xl">
+                    <button onClick={() => setOffset((p: number) => p - 1)} className="p-4 bg-white/5 rounded-full hover:bg-white/10 active:scale-95"><ArrowDown size={24} className="-rotate-90" /></button>
+                    <div className="flex flex-col items-center">
+                        <span className="text-3xl font-mono font-bold">{offset}°</span>
+                        <span className="text-xs opacity-50 uppercase">SAPMA</span>
+                    </div>
+                    <button onClick={() => setOffset((p: number) => p + 1)} className="p-4 bg-white/5 rounded-full hover:bg-white/10 active:scale-95"><ArrowUp size={24} className="rotate-90" /></button>
                 </div>
-                <button onClick={handleSave} className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-black font-bold rounded-xl mb-3 transition-colors">Kaydet</button>
-                <button onClick={onClose} className="w-full py-3 text-white/50 font-bold hover:text-white transition-colors">İptal</button>
+                <div className="text-xs text-white/50 mb-6 text-center leading-relaxed">
+                    Telefonunuzun manyetik sensörü montaj açısına göre sapma gösterebilir. GPS yönü ile eşleşmesi için ayarlayın.
+                </div>
+                <button onClick={() => { localStorage.setItem('compassOffset', offset.toString()); onClose(); }} className="w-full py-4 bg-cyan-500 hover:bg-cyan-400 text-black font-bold rounded-xl transition-colors">KAYDET</button>
             </div>
         </div>
     );
@@ -401,143 +374,107 @@ const CalibrationModal = ({ isOpen, onClose, offset, setOffset }: any) => {
 
 const DigitalClock = ({ isDark, toggleTheme, batteryLevel, btDevice, onConnectBt, isFocusMode }: any) => {
     const [time, setTime] = useState(new Date());
-    useEffect(() => {
-        const timer = setInterval(() => setTime(new Date()), 1000);
-        return () => clearInterval(timer);
-    }, []);
+    useEffect(() => { const t = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(t); }, []);
 
     return (
-        <div className={`flex flex-col items-center transition-opacity duration-500 ${isFocusMode ? 'opacity-0' : 'opacity-100'}`}>
-            <div className="text-4xl font-bold tracking-tighter text-white leading-none tabular-nums">
-                {time.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-            </div>
-            <div className="flex items-center gap-3 mt-2">
-                <div className="flex items-center gap-1">
-                    <div className="relative">
-                        <Battery size={16} className={`text-white/70 ${batteryLevel < 20 ? 'text-red-500 animate-pulse' : ''}`} />
-                        <div className={`absolute top-[2px] left-[2px] h-[7px] bg-white rounded-[1px] ${batteryLevel < 20 ? 'bg-red-500' : ''}`} style={{ width: `${Math.max(0, (batteryLevel/100)*12)}px` }} />
-                    </div>
-                    <span className="text-xs font-bold text-white/70">{Math.round(batteryLevel)}%</span>
-                </div>
-                <div className="w-px h-3 bg-white/20"></div>
-                <button onClick={onConnectBt} className="flex items-center gap-1 active:scale-95 transition-transform">
-                    <Bluetooth size={16} className={btDevice ? "text-cyan-400" : "text-white/30"} />
-                    {btDevice && <span className="text-xs font-bold text-cyan-400">{btDevice.level ? `${btDevice.level}%` : 'ON'}</span>}
-                </button>
-            </div>
+        <div className={`flex flex-col items-end transition-opacity duration-500 ${isFocusMode ? 'opacity-0' : 'opacity-100'}`}>
+             <div className="text-3xl font-bold tracking-tight leading-none tabular-nums font-mono">{time.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</div>
+             <div className="flex items-center gap-3 mt-1.5 opacity-60">
+                 <button onClick={onConnectBt} className={`flex items-center gap-1.5 ${btDevice ? 'text-blue-400' : 'text-white/50'}`}>
+                     {btDevice ? <Headphones size={14} /> : <Bluetooth size={14} />}
+                     {btDevice && <span className="text-[10px] font-bold uppercase max-w-[60px] truncate">{btDevice.level ? `${btDevice.level}%` : 'BAĞLI'}</span>}
+                 </button>
+                 <div className="w-px h-3 bg-white/20"></div>
+                 <div className="flex items-center gap-1.5">
+                     <span className="text-[10px] font-bold">{Math.round(batteryLevel)}%</span>
+                     <div className="relative">
+                        <Battery size={14} className={batteryLevel < 20 ? 'text-red-500' : 'text-white'} />
+                        <div className={`absolute top-[3px] left-[2px] bottom-[3px] w-[8px] bg-current rounded-[1px] ${batteryLevel < 20 ? 'bg-red-500' : 'bg-white'}`} style={{width: `${batteryLevel * 0.08}px`}}></div>
+                     </div>
+                 </div>
+             </div>
         </div>
     );
 };
 
-const DigitalSpeedDisplay = ({ speed, onClick }: { speed: number, onClick: () => void }) => (
-    <div onClick={onClick} className="flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform z-20">
-        <div className="relative">
-            <span className="text-[28vw] sm:text-[180px] font-sans font-black text-white leading-[0.85] tracking-tighter drop-shadow-[0_0_50px_rgba(255,255,255,0.15)]">
-                {Math.round(speed)}
-            </span>
-        </div>
-        <div className="text-lg font-bold text-white/40 tracking-[0.4em] mt-2 uppercase">km/h</div>
-    </div>
-);
-
-const EnvGrid = ({ weather, analysis, bikeHeading, tripDistance, currentTrack, isPaused, isDark, onExpand, btDevice, onConnectBt, windChill, apparentWind, isFocusMode, stations, spotifyUser, trackProgress, onSpotifyLogin }: any) => {
+const DigitalSpeedDisplay = ({ speed, onClick }: any) => {
     return (
-        <div className={`w-full grid grid-cols-2 gap-3 px-4 pb-8 transition-all duration-500 ${isFocusMode ? 'translate-y-20 opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'}`}>
-            {/* Wind Radar Widget */}
-            <div onClick={() => onExpand('weather')} className="col-span-1 aspect-square bg-[#1c1c1e]/60 backdrop-blur-xl rounded-3xl border border-white/10 p-1 relative overflow-hidden active:scale-[0.98] transition-transform">
-                <WindRadar 
-                    windSpeed={weather?.windSpeed || 0} 
-                    apparentWind={apparentWind} 
-                    windDirection={weather?.windDirection || 0} 
-                    bikeHeading={bikeHeading}
-                    windChill={windChill}
-                />
+        <div onClick={onClick} className="flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform duration-200 z-30">
+             <div className="relative">
+                 <span className="text-[28vw] sm:text-[180px] font-['Chakra_Petch'] font-black leading-[0.8] tracking-tighter tabular-nums text-transparent bg-clip-text bg-gradient-to-b from-white to-white/50 drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
+                     {Math.round(speed)}
+                 </span>
+             </div>
+             <span className="text-sm sm:text-xl font-bold text-white/40 tracking-[0.5em] uppercase mt-2 ml-4">KM/H</span>
+        </div>
+    );
+};
+
+const EnvGrid = ({ weather, aheadWeather, analysis, bikeHeading, tripDistance, currentStation, isPlaying, isDark, onExpand, btDevice, onConnectBt, windChill, apparentWind, isFocusMode, stations, onTogglePlay }: any) => {
+    return (
+        <div className={`grid grid-cols-2 gap-3 px-4 pb-6 w-full max-w-lg mx-auto transition-all duration-700 ${isFocusMode ? 'translate-y-20 opacity-0' : 'translate-y-0 opacity-100'}`}>
+            
+            {/* 1. Dynamic Wind Radar (Top Left) */}
+            <div onClick={() => onExpand('weather')} className="col-span-1 aspect-square bg-white/5 border border-white/10 rounded-3xl relative overflow-hidden active:scale-95 transition-transform shadow-lg">
+                {weather ? (
+                    <WindRadar windSpeed={weather.windSpeed} apparentWind={apparentWind} windDirection={weather.windDirection} bikeHeading={bikeHeading} windChill={windChill} />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center text-white/20"><Wind size={32} className="animate-pulse" /></div>
+                )}
             </div>
 
-            {/* CoPilot / Weather Widget */}
-            <div className="col-span-1 flex flex-col gap-3">
-                 <div onClick={() => onExpand('copilot')} className={`flex-1 rounded-3xl p-4 border active:scale-[0.98] transition-transform flex flex-col justify-between relative overflow-hidden ${analysis.status === 'danger' ? 'bg-rose-900/20 border-rose-500/30' : analysis.status === 'caution' ? 'bg-amber-900/20 border-amber-500/30' : 'bg-[#1c1c1e]/60 border-white/10'}`}>
-                    <div className="flex justify-between items-start">
-                        {analysis.status === 'safe' ? <ShieldCheck size={24} className={analysis.color} /> : analysis.status === 'caution' ? <Shield size={24} className={analysis.color} /> : <ShieldAlert size={24} className={analysis.color} />}
-                        <div className="text-[10px] font-bold opacity-50 uppercase tracking-widest">CoPilot</div>
-                    </div>
-                    <div>
-                        <div className={`text-lg font-bold leading-tight ${analysis.color}`}>{analysis.roadCondition}</div>
-                        <div className="text-[10px] opacity-60 mt-1 line-clamp-1">{analysis.message}</div>
-                    </div>
+            {/* 2. 10KM Route Forecast (Top Right) - NEW */}
+            <div onClick={() => onExpand('ahead')} className="col-span-1 aspect-square bg-emerald-950/20 border border-emerald-500/20 rounded-3xl p-3 relative active:scale-95 transition-transform flex flex-col justify-between group overflow-hidden">
+                <div className="absolute top-0 right-0 p-2 opacity-30 group-hover:opacity-60 transition-opacity"><Navigation size={20} className="text-emerald-400"/></div>
+                 <div className="z-10">
+                    <div className="text-[9px] font-bold uppercase tracking-widest text-emerald-400 mb-0.5">10 KM ROTA</div>
+                    <div className="text-[9px] font-medium text-white/40 leading-none">TAHMİNİ DURUM</div>
                 </div>
-
-                <div onClick={() => onExpand('weather')} className="h-[70px] bg-[#1c1c1e]/60 backdrop-blur-xl rounded-3xl border border-white/10 p-3 flex items-center justify-between active:scale-[0.98] transition-transform">
-                    <div className="flex flex-col">
-                        <span className="text-[10px] opacity-50 uppercase font-bold">Sıcaklık</span>
-                        <span className="text-2xl font-bold text-white">{Math.round(weather?.temp || 0)}°</span>
-                    </div>
-                    {getWeatherIcon(weather?.weatherCode || 0, 32)}
-                </div>
-            </div>
-
-            {/* Music Widget */}
-            <div onClick={() => spotifyUser.isLoggedIn ? onExpand('spotify') : onSpotifyLogin()} className="col-span-2 h-[80px] bg-[#1c1c1e]/60 backdrop-blur-xl rounded-3xl border border-white/10 p-3 flex items-center gap-4 relative overflow-hidden active:scale-[0.98] transition-transform group">
-                 {!spotifyUser.isLoggedIn ? (
-                     <div className="flex items-center gap-4 w-full px-2">
-                         <div className="w-12 h-12 rounded-full bg-[#1DB954]/20 flex items-center justify-center"><Music size={20} className="text-[#1DB954]" /></div>
-                         <div className="flex flex-col">
-                             <span className="font-bold text-white">Spotify Bağlan</span>
-                             <span className="text-xs text-white/50">Müzik kontrolü için dokun</span>
-                         </div>
-                     </div>
-                 ) : (
-                    <>
-                        <div className={`w-14 h-14 rounded-2xl bg-white/10 shrink-0 overflow-hidden relative ${isPaused ? 'opacity-80' : ''}`}>
-                            {currentTrack?.album?.images[0]?.url ? (
-                                <img src={currentTrack.album.images[0].url} className="w-full h-full object-cover" alt="" />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center"><Headphones size={24} className="text-white/20"/></div>
-                            )}
-                            {currentTrack && !isPaused && (
-                                <div className="absolute inset-0 flex items-end justify-center gap-[2px] pb-1 bg-black/20">
-                                    <div className="w-[3px] bg-[#1DB954] animate-bounce h-3" style={{animationDelay:'0ms'}}></div>
-                                    <div className="w-[3px] bg-[#1DB954] animate-bounce h-5" style={{animationDelay:'150ms'}}></div>
-                                    <div className="w-[3px] bg-[#1DB954] animate-bounce h-2" style={{animationDelay:'300ms'}}></div>
-                                </div>
-                            )}
-                        </div>
-                        <div className="flex-1 min-w-0 flex flex-col justify-center h-full">
-                            <div className="flex items-center gap-2 mb-0.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#1DB954] shrink-0"></span>
-                                <span className="text-[10px] font-bold text-[#1DB954] uppercase tracking-wider">SPOTIFY</span>
+                <div className="z-10 flex flex-col items-start mt-1">
+                     {aheadWeather ? (
+                         <>
+                            <div className="flex items-center gap-2">
+                                {getWeatherIcon(aheadWeather.weatherCode, 28, true)}
+                                <div className="text-4xl font-bold tracking-tighter">{Math.round(aheadWeather.temp)}°</div>
                             </div>
-                            <div className="font-bold text-base truncate text-white/90 leading-tight">{currentTrack?.name || "Müzik Durduruldu"}</div>
-                            <div className="text-xs text-white/50 truncate font-medium">{currentTrack?.artists[0]?.name || "Parça seçin"}</div>
-                            {/* Mini Progress Bar */}
-                            {currentTrack && (
-                                <div className="w-full h-1 bg-white/10 rounded-full mt-2 overflow-hidden">
-                                    <div className="h-full bg-[#1DB954] rounded-full" style={{ width: `${(trackProgress / currentTrack.duration_ms) * 100}%` }}></div>
-                                </div>
-                            )}
+                            <div className="flex items-center gap-1.5 mt-auto">
+                                <Droplets size={12} className={aheadWeather.rainProb > 20 ? 'text-blue-400' : 'text-white/30'}/> 
+                                <span className={`text-xs font-bold ${aheadWeather.rainProb > 20 ? 'text-blue-300' : 'text-white/50'}`}>%{aheadWeather.rainProb}</span>
+                            </div>
+                         </>
+                     ) : (
+                         <div className="text-xs text-white/30 animate-pulse mt-2">Hesaplanıyor...</div>
+                     )}
+                </div>
+            </div>
+
+            {/* 3. Current Weather Overview (Bottom Left) */}
+            <div onClick={() => onExpand('weather')} className="col-span-1 aspect-square bg-white/5 border border-white/10 rounded-3xl p-4 relative active:scale-95 transition-transform flex flex-col justify-between items-start group">
+                 <div className="absolute top-3 right-3 opacity-30"><MapPin size={16}/></div>
+                 <div className="text-[9px] font-bold uppercase tracking-widest text-white/40">MEVCUT KONUM</div>
+                 {weather ? (
+                     <>
+                        <div className="self-center mt-1 scale-125">{getWeatherIcon(weather.weatherCode, 40, true)}</div>
+                        <div className="w-full flex justify-between items-end">
+                            <div className="text-2xl font-light tracking-tighter">{Math.round(weather.temp)}°</div>
+                            <div className="text-[10px] font-bold text-white/50 mb-1">%{weather.rainProb} Yağış</div>
                         </div>
-                        <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/5">
-                            {isPaused ? <Play size={18} fill="white" className="ml-0.5 text-white/80" /> : <Pause size={18} fill="white" className="text-white/80" />}
-                        </div>
-                    </>
+                     </>
+                 ) : (
+                     <div className="flex-1 flex items-center justify-center opacity-30">...</div>
                  )}
             </div>
 
-            {/* Stations Widget */}
-            <div onClick={() => onExpand('stations')} className="col-span-2 h-[70px] bg-[#1c1c1e]/60 backdrop-blur-xl rounded-3xl border border-white/10 p-3 px-5 flex items-center justify-between active:scale-[0.98] transition-transform">
-                <div className="flex flex-col">
-                    <span className="text-[10px] font-bold opacity-40 uppercase tracking-widest mb-0.5">YAKIN İSTASYONLAR</span>
-                    <div className="flex items-baseline gap-1">
-                        <span className="text-2xl font-bold tabular-nums text-white">{stations.length}</span>
-                        <span className="text-xs font-bold opacity-60">Bölge</span>
-                    </div>
-                </div>
-                <div className="flex -space-x-3">
-                     {stations.slice(0,3).map((s:any, i:number) => (
-                         <div key={i} className="w-10 h-10 rounded-full bg-[#2c2c2e] border-2 border-[#121214] flex items-center justify-center text-xs font-bold text-white/50">{s.direction[0]}</div>
-                     ))}
-                     {stations.length > 3 && <div className="w-10 h-10 rounded-full bg-[#2c2c2e] border-2 border-[#121214] flex items-center justify-center text-xs font-bold text-white/50">+{stations.length - 3}</div>}
-                </div>
+            {/* 4. CoPilot (Bottom Right) */}
+            <div onClick={() => onExpand('copilot')} className="col-span-1 aspect-square bg-gradient-to-br from-white/10 to-transparent border border-white/5 rounded-3xl p-4 flex flex-col justify-between active:scale-95 transition-transform relative overflow-hidden group">
+                 <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity"><ShieldCheck size={32} /></div>
+                 <div>
+                     <div className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${analysis.color.replace('text-', 'text-')}`}>CO-PILOT</div>
+                     <div className={`text-base font-bold leading-none tracking-tight text-white`}>{analysis.status === 'safe' ? 'GÜVENLİ' : analysis.status === 'caution' ? 'DİKKAT' : 'RİSKLİ'}</div>
+                 </div>
+                 <div className="text-[9px] font-medium text-white/60 leading-snug line-clamp-2 mt-auto">
+                     {analysis.message}
+                 </div>
             </div>
         </div>
     );
@@ -563,16 +500,10 @@ const App: React.FC = () => {
       return saved ? { name: saved, level: null } : null;
   });
   
-  // Spotify States
-  const [spotifyToken, setSpotifyToken] = useState<string | null>(localStorage.getItem('spotify_token'));
-  const [spotifyClientId, setSpotifyClientId] = useState<string>(localStorage.getItem('spotify_client_id') || 'ea912decbcc14169b6676efa223f28c5');
-  const [spotifyUser, setSpotifyUser] = useState({ isLoggedIn: false, name: '' });
-  const [currentTrack, setCurrentTrack] = useState<SpotifyTrack | null>(null);
-  const [isPaused, setIsPaused] = useState(true);
-  const [trackProgress, setTrackProgress] = useState(0);
-  const [playlists, setPlaylists] = useState<SpotifyPlaylist[]>([]);
-  const [playerDeviceId, setPlayerDeviceId] = useState<string | null>(null);
-  const playerRef = useRef<any>(null);
+  // Radio States
+  const [currentStation, setCurrentStation] = useState<RadioStation | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showCalibration, setShowCalibration] = useState(false);
@@ -592,203 +523,52 @@ const App: React.FC = () => {
   const isDark = theme === 'dark';
   const isFocusMode = speed > 100;
 
-  // --- SPOTIFY LOGIC ---
-
-  // 1. Auth Init (Debug Mode - FIXED for Blob/Preview URLs)
-  const handleSpotifyLogin = () => {
-    try {
-        const clientId = 'ea912decbcc14169b6676efa223f28c5';
-        const productionUri = 'https://riderouteck-nine.vercel.app/'; // User provided production URI
-
-        let redirectUri = window.location.href;
-        
-        // CHECK: If we are in a Blob URL (Preview) or a Google Cloud Function URL (Preview environment)
-        // We MUST use the hardcoded production URI, otherwise Spotify will reject the 'blob:...' URI.
-        if (redirectUri.startsWith('blob:') || redirectUri.includes('scf.usercontent.goog')) {
-             console.log("Preview environment detected. Using Production URI for Spotify Redirect.");
-             redirectUri = productionUri;
-        } else {
-            // Normal environment: Clean hash and params
-            if (redirectUri.includes('#')) redirectUri = redirectUri.split('#')[0];
-            if (redirectUri.includes('?')) redirectUri = redirectUri.split('?')[0];
-            
-            // Note: We do NOT strip the trailing slash anymore, to ensure it matches the user's dashboard registration exactly.
-        }
-
-        console.log("DEBUG: Final Redirect URI used:", redirectUri);
-
-        const scopes = [
-            "streaming",
-            "user-read-email",
-            "user-read-private",
-            "user-read-playback-state",
-            "user-modify-playback-state",
-            "playlist-read-private"
-        ];
-
-        const authUrl = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes.join(" "))}`;
-        
-        console.log("DEBUG: Redirecting to:", authUrl);
-        
-        // 3. Perform Redirect
-        window.location.href = authUrl;
-
-    } catch (e: any) {
-        console.error("Spotify Login Error:", e);
-        // CRITICAL: Alert the user with the exact error so they can debug
-        alert(`Spotify Bağlantı Hatası!\n\nHata: ${e.message}\n\nLütfen tarayıcı konsolunu kontrol edin.`);
-    }
-  };
-
-  const handleSpotifyLogout = () => {
-      setSpotifyToken(null);
-      localStorage.removeItem('spotify_token');
-      setSpotifyUser({ isLoggedIn: false, name: '' });
-      setCurrentTrack(null);
-      if (playerRef.current) playerRef.current.disconnect();
-      window.location.hash = '';
-      window.location.reload();
-  };
-
-  // 2. Token Parse & SDK Init
+  // --- RADIO LOGIC ---
   useEffect(() => {
-    const hash = window.location.hash;
-    if (hash && hash.includes('access_token')) {
-        const token = new URLSearchParams(hash.substring(1)).get('access_token');
-        if (token) {
-            setSpotifyToken(token);
-            localStorage.setItem('spotify_token', token);
-            window.location.hash = '';
-        }
+    if (!audioRef.current) {
+        audioRef.current = new Audio();
+        audioRef.current.crossOrigin = "anonymous";
     }
   }, []);
 
-  // 3. SDK Setup
   useEffect(() => {
-    if (!spotifyToken) return;
+    const audio = audioRef.current;
+    if (!audio) return;
 
-    let playerInstance: any = null;
-
-    const initializePlayer = () => {
-        if (!(window as any).Spotify) return;
-
-        const player = new (window as any).Spotify.Player({
-            name: 'MotoRota Web Player',
-            getOAuthToken: (cb: any) => { cb(spotifyToken); },
-            volume: 0.8
-        });
-
-        player.addListener('ready', ({ device_id }: any) => {
-            console.log('Ready with Device ID', device_id);
-            setPlayerDeviceId(device_id);
-            setSpotifyUser(prev => ({ ...prev, isLoggedIn: true })); 
-            
-            // Transfer playback to this device to avoid "active device" issues
-            fetch('https://api.spotify.com/v1/me/player', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${spotifyToken}` },
-                body: JSON.stringify({ device_ids: [device_id], play: false })
-            }).catch(err => console.error("Transfer playback failed", err));
-        });
-
-        player.addListener('not_ready', ({ device_id }: any) => {
-            console.log('Device ID has gone offline', device_id);
-        });
-
-        player.addListener('authentication_error', ({ message }: any) => {
-            console.error(message);
-            handleSpotifyLogout();
-        });
-
-        player.addListener('player_state_changed', (state: SpotifyPlayerState) => {
-            if (!state) return;
-            setCurrentTrack(state.track_window.current_track);
-            setIsPaused(state.paused);
-            setTrackProgress(state.position);
-            
-            player.getCurrentState().then((s: any) => { 
-                if(s) setTrackProgress(s.position); 
-            });
-        });
-
-        player.connect();
-        playerRef.current = player;
-        playerInstance = player;
-    };
-
-    if ((window as any).Spotify) {
-        initializePlayer();
-    } else {
-        (window as any).onSpotifyWebPlaybackSDKReady = initializePlayer;
-        if (!document.getElementById('spotify-sdk')) {
-            const script = document.createElement("script");
-            script.id = 'spotify-sdk';
-            script.src = "https://sdk.scdn.co/spotify-player.js";
-            script.async = true;
-            script.crossOrigin = "anonymous"; 
-            document.body.appendChild(script);
+    if (currentStation) {
+        if (audio.src !== currentStation.streamUrl) {
+            audio.src = currentStation.streamUrl;
+            audio.load();
         }
+        if (isPlaying) {
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.error("Radio playback failed:", error);
+                    setIsPlaying(false);
+                });
+            }
+        } else {
+            audio.pause();
+        }
+    } else {
+        audio.pause();
+        audio.src = "";
     }
-        
-    // Fetch User Info
-    fetch('https://api.spotify.com/v1/me', { headers: { 'Authorization': `Bearer ${spotifyToken}` } })
-        .then(res => {
-            if (res.status === 401) throw new Error("Token expired");
-            return res.json();
-        })
-        .then(data => setSpotifyUser({ isLoggedIn: true, name: data.display_name }))
-        .catch(() => handleSpotifyLogout());
+  }, [currentStation, isPlaying]);
 
-    // Fetch Playlists
-    fetch('https://api.spotify.com/v1/me/playlists', { headers: { 'Authorization': `Bearer ${spotifyToken}` } })
-        .then(res => {
-            if (res.status === 401) throw new Error("Token expired");
-            return res.json();
-        })
-        .then(data => setPlaylists(data.items || []))
-        .catch(() => {});
-
-    return () => {
-        if (playerInstance) playerInstance.disconnect();
-    };
-  }, [spotifyToken]);
-
-  // Smooth Progress Bar Interpolation
-  useEffect(() => {
-    if (isPaused || !currentTrack) return;
-    
-    const interval = setInterval(() => {
-        setTrackProgress(prev => {
-            if (prev >= currentTrack.duration_ms) return prev;
-            return prev + 100; // Increment by 100ms
-        });
-    }, 100);
-
-    return () => clearInterval(interval);
-  }, [isPaused, currentTrack]);
-
-  // 4. Playback Controls
-  const spotifyControl = {
-      togglePlay: () => playerRef.current?.togglePlay(),
-      next: () => playerRef.current?.nextTrack(),
-      prev: () => playerRef.current?.previousTrack(),
-      seek: (ms: number) => playerRef.current?.seek(ms),
-      playContext: (uri: string) => {
-          fetch(`https://api.spotify.com/v1/me/player/play?device_id=${playerDeviceId}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${spotifyToken}` },
-              body: JSON.stringify({ context_uri: uri })
-          }).catch(e => console.error("Play context failed", e));
+  const radioHandlers = {
+      currentStation,
+      isPlaying,
+      togglePlay: () => setIsPlaying(!isPlaying),
+      playStation: (station: RadioStation) => {
+          if (currentStation?.id === station.id) {
+              setIsPlaying(!isPlaying);
+          } else {
+              setCurrentStation(station);
+              setIsPlaying(true);
+          }
       }
-  };
-
-  const musicHandlers = {
-      currentTrack,
-      isPaused,
-      progress: trackProgress,
-      togglePlay: spotifyControl.togglePlay,
-      next: spotifyControl.next,
-      prev: spotifyControl.prev
   };
 
   // --- SENSORS & GENERAL LOGIC ---
@@ -818,8 +598,6 @@ const App: React.FC = () => {
           try { 
               wakeLockRef.current = await (navigator as any).wakeLock.request('screen'); 
           } catch (e) { 
-              // Silently fail in preview environments where policy prevents wake lock
-              // console.log('Wake Lock Error', e); 
           } 
       } 
   };
@@ -962,7 +740,7 @@ const App: React.FC = () => {
         </div>
 
         <CalibrationModal isOpen={showCalibration} onClose={() => setShowCalibration(false)} offset={compassOffset} setOffset={setCompassOffset} />
-        {expandedView && <DetailOverlay type={expandedView} data={expandedData} onClose={handleCloseModal} theme={theme} musicHandlers={musicHandlers} spotifyUser={spotifyUser} onSpotifyLogin={handleSpotifyLogin} onSpotifyLogout={handleSpotifyLogout} clientId={spotifyClientId} setClientId={setSpotifyClientId} playlists={playlists} onPlayPlaylist={spotifyControl.playContext} />}
+        {expandedView && <DetailOverlay type={expandedView} data={expandedData} onClose={handleCloseModal} theme={theme} radioHandlers={radioHandlers} />}
         {isVisorMode && <VisorOverlay windChill={windChill} apparentWind={apparentWind} rainProb={weather?.rainProb || 0} onClose={() => setIsVisorMode(false)} windDir={(weather?.windDirection || 0) - effectiveHeading + 180} speed={speed} />}
 
         <div className={`flex justify-between items-start px-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-2 z-20 shrink-0 transition-opacity duration-700 ${isFocusMode ? 'opacity-20 hover:opacity-100' : 'opacity-100'}`}>
@@ -977,33 +755,26 @@ const App: React.FC = () => {
              <DigitalClock isDark={isDark} toggleTheme={toggleTheme} batteryLevel={batteryLevel} btDevice={btDevice} onConnectBt={handleConnectBluetooth} isFocusMode={isFocusMode} />
         </div>
 
-        {currentTrack && !expandedView && !isVisorMode && spotifyUser.isLoggedIn && (
-             <div className="absolute top-[100px] left-0 right-0 px-6 z-50 flex justify-center animate-in slide-in-from-top-4 fade-in duration-500 ios-ease">
-                <button onClick={() => setExpandedView('spotify')} className="flex items-center gap-4 bg-[#1DB954]/90 backdrop-blur-xl text-black px-4 py-3 rounded-full shadow-[0_10px_30px_rgba(29,185,84,0.4)] border border-[#1DB954]/50 active:scale-95 transition-all group hover:bg-[#1ed760] max-w-[90%]">
-                    <img src={currentTrack.album.images[0]?.url} className="w-10 h-10 rounded shadow-md object-cover" alt="Cover"/>
-                    <div className="flex flex-col items-start leading-none mr-2 min-w-0 flex-1">
-                        <span className="text-xs font-bold truncate w-full">{currentTrack.name}</span>
-                        <span className="text-[10px] font-medium opacity-80 truncate w-full">{currentTrack.artists[0]?.name}</span>
-                    </div>
-                    <div onClick={(e) => { e.stopPropagation(); spotifyControl.togglePlay(); }} className="p-1 rounded-full bg-black/10 hover:bg-black/20 transition-colors shrink-0">
-                        {isPaused ? <Play size={24} fill="currentColor" className="text-black/80 ml-0.5" /> : <Pause size={24} fill="currentColor" className="text-black/80" />}
-                    </div>
-                </button>
-            </div>
-        )}
+        {/* Compact Top Radio Player */}
+        <CompactRadioPlayer 
+            station={currentStation} 
+            isPlaying={isPlaying} 
+            onToggle={radioHandlers.togglePlay} 
+            onExpand={() => setExpandedView('radio')} 
+        />
 
         {(showRainWarning || showAheadWarning) && !isVisorMode && (
-            <div className={`w-full px-6 mt-16 mb-0 z-30 transition-opacity duration-500 ${isFocusMode ? 'opacity-20 hover:opacity-100' : 'opacity-100'}`}>
+            <div className={`w-full px-6 mt-4 mb-0 z-30 transition-opacity duration-500 ${isFocusMode ? 'opacity-20 hover:opacity-100' : 'opacity-100'}`}>
                 {showRainWarning && ( <div className="w-full bg-cyan-900/60 backdrop-blur-xl border border-cyan-500/50 rounded-2xl py-3 px-4 flex items-center justify-center gap-3 animate-pulse shadow-[0_0_20px_rgba(6,182,212,0.3)] mb-2"><Umbrella className="text-cyan-400" size={18} /><span className="text-cyan-200 text-xs font-bold tracking-widest">YAĞIŞ BEKLENİYOR (%{weather?.rainProb})</span></div> )}
                 {showAheadWarning && ( <div className="w-full bg-rose-900/60 backdrop-blur-xl border border-rose-500/50 rounded-2xl py-3 px-4 flex items-center justify-center gap-3 animate-pulse shadow-[0_0_20px_rgba(244,63,94,0.3)]"><Radar className="text-rose-400" size={18} /><span className="text-rose-200 text-xs font-bold tracking-widest">10KM İLERİDE YAĞMUR!</span></div> )}
             </div>
         )}
 
-        <div className="flex-1 flex flex-col justify-center items-center relative z-10 w-full min-h-0">
+        <div className="flex-1 flex flex-col justify-center items-center relative z-10 w-full min-h-0 -mt-8">
              <DigitalSpeedDisplay speed={speed} onClick={() => setExpandedView('speed')} />
         </div>
 
-        <EnvGrid weather={weather} analysis={analysis} bikeHeading={effectiveHeading} tripDistance={tripDistance} currentTrack={currentTrack} isPaused={isPaused} isDark={isDark} onExpand={(type: string) => { setExpandedView(type); if(type === 'copilot' && isVoiceEnabled) speak(`${analysis.message}. ${analysis.roadCondition}`); }} btDevice={btDevice} onConnectBt={handleConnectBluetooth} windChill={windChill} apparentWind={apparentWind} isFocusMode={isFocusMode} stations={nearbyStations} spotifyUser={spotifyUser} trackProgress={trackProgress} onSpotifyLogin={handleSpotifyLogin} />
+        <EnvGrid weather={weather} aheadWeather={aheadWeather} analysis={analysis} bikeHeading={effectiveHeading} tripDistance={tripDistance} currentStation={currentStation} isPlaying={isPlaying} isDark={isDark} onExpand={(type: string) => { setExpandedView(type); if(type === 'copilot' && isVoiceEnabled) speak(`${analysis.message}. ${analysis.roadCondition}`); }} btDevice={btDevice} onConnectBt={handleConnectBluetooth} windChill={windChill} apparentWind={apparentWind} isFocusMode={isFocusMode} stations={nearbyStations} onTogglePlay={radioHandlers.togglePlay} />
     </div>
   );
 };
