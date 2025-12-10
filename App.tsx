@@ -1,22 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, Navigation, Umbrella, Download, X, Battery, Shield, ShieldAlert, ShieldCheck, Bluetooth, Music, Headphones, Radar, ThermometerSnowflake, Glasses, Map, Play, Pause, SkipForward, SkipBack, User, Shuffle, Repeat, ArrowUp, ArrowDown, Radio, Signal, MapPin, Droplets, Navigation2 } from 'lucide-react';
+import { Wind, CloudRain, Sun, Cloud, CloudFog, Snowflake, Navigation, Umbrella, Download, X, Battery, Shield, ShieldAlert, ShieldCheck, Bluetooth, Music, Headphones, Radar, ThermometerSnowflake, Glasses, Map, Play, Pause, SkipForward, SkipBack, User, Shuffle, Repeat, ArrowUp, ArrowDown, Radio, Signal, MapPin, Droplets, Navigation2, Scan } from 'lucide-react';
 import { WeatherData, CoPilotAnalysis, StationData, RadioStation } from './types';
 import { getWeatherForPoint, reverseGeocode, getNearbyStations } from './services/api';
 
-// --- RADIO STATIONS DATA ---
+// --- RADIO STATIONS DATA (SIMPLIFIED) ---
 const RADIO_STATIONS: RadioStation[] = [
     { id: '1', name: 'Power FM', category: 'Yabancı Pop', streamUrl: 'https://listen.powerapp.com.tr/powerfm/mpeg/icecast.audio', color: 'bg-red-600' },
     { id: '2', name: 'Power Türk', category: 'Türkçe Pop', streamUrl: 'https://listen.powerapp.com.tr/powerturk/mpeg/icecast.audio', color: 'bg-red-700' },
-    { id: '3', name: 'Fenomen', category: 'Hit Müzik', streamUrl: 'https://listen.radyofenomen.com/fenomen/128/icecast.audio', color: 'bg-purple-600' },
-    { id: '4', name: 'Fenomen Türk', category: 'Türkçe Hit', streamUrl: 'https://listen.radyofenomen.com/fenomenturk/128/icecast.audio', color: 'bg-purple-700' },
-    { id: '5', name: 'Metro FM', category: 'Yabancı Hit', streamUrl: 'https://stream.karnaval.com/metrofm', color: 'bg-blue-600' },
-    { id: '6', name: 'Joy Türk', category: 'Slow Türkçe', streamUrl: 'https://stream.karnaval.com/joyturk', color: 'bg-orange-500' },
-    { id: '7', name: 'Virgin Radio', category: 'Yabancı Pop', streamUrl: 'https://stream.karnaval.com/virginradio', color: 'bg-red-500' },
     { id: '8', name: 'Number 1', category: 'Hit', streamUrl: 'https://n10101m.mediatriple.net/numberoneturk', color: 'bg-blue-500' },
-    { id: '9', name: 'Kral Pop', category: 'Türkçe Pop', streamUrl: 'https://moondigitalv2.radyotvonline.net/kralpop/playlist.m3u8', color: 'bg-orange-600' },
-    { id: '10', name: 'Alem FM', category: 'Türkçe Pop', streamUrl: 'https://turkmedya.radyotvonline.com/turkmedya/alemfm.stream/playlist.m3u8', color: 'bg-cyan-600' },
-    { id: '11', name: 'Best FM', category: 'Türkçe', streamUrl: 'https://bestfm.radyotvonline.net/bestfm/playlist.m3u8', color: 'bg-blue-800' },
-    { id: '12', name: 'Show Radyo', category: 'Türkçe Pop', streamUrl: 'https://showradyo.radyotvonline.net/showradyo/playlist.m3u8', color: 'bg-yellow-500' },
 ];
 
 // --- MATH UTILS ---
@@ -99,11 +90,8 @@ const analyzeConditions = (weather: WeatherData | null): CoPilotAnalysis => {
 // --- SUB COMPONENTS ---
 
 const WindRadar = ({ windSpeed, apparentWind, windDirection, bikeHeading, windChill }: any) => {
-    // Relative angle: Where wind comes FROM relative to bike nose (0deg)
-    // Formula: (WindDir - BikeHeading + 180) % 360 puts the source in correct position relative to "Up"
     const relativeWindAngle = (windDirection - bikeHeading + 180) % 360;
     
-    // Determine impact direction for text
     const getImpactText = (angle: number) => {
         if (angle >= 315 || angle < 45) return "ÖNDEN ESİYOR";
         if (angle >= 45 && angle < 135) return "SAĞDAN ESİYOR";
@@ -124,45 +112,36 @@ const WindRadar = ({ windSpeed, apparentWind, windDirection, bikeHeading, windCh
 
     return (
         <div className="relative flex flex-col items-center justify-between w-full h-full p-2 overflow-hidden">
-            {/* Background Grids */}
             <div className="absolute inset-0 flex items-center justify-center opacity-10">
                 <div className="w-full h-px bg-white"></div>
                 <div className="h-full w-px bg-white absolute"></div>
             </div>
 
-            {/* Main Visual */}
             <div className="flex-1 w-full relative flex items-center justify-center">
-                 {/* Bike Icon (Fixed Center) */}
                 <div className="absolute z-10 p-2 bg-[#18181b] rounded-full border border-white/20 shadow-[0_0_15px_rgba(0,0,0,0.8)]">
                     <Navigation2 size={24} className="text-white fill-white stroke-[3px]" />
                 </div>
                 
-                {/* Wind Flow Indicators (Rotating) */}
                 <div 
                     className="absolute inset-0 flex items-center justify-center transition-transform duration-700 ease-out"
                     style={{ transform: `rotate(${relativeWindAngle}deg)` }}
                 >
-                    {/* The "Source" Arrow */}
                     <div className="absolute -top-4 flex flex-col items-center gap-1">
                          <div className={`w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[12px] ${apparentWind > 25 ? 'border-t-rose-500 animate-pulse' : 'border-t-cyan-400'}`}></div>
                          <div className={`w-0.5 h-6 bg-gradient-to-b ${apparentWind > 25 ? 'from-rose-500' : 'from-cyan-400'} to-transparent opacity-50`}></div>
                     </div>
-
-                    {/* Streamlines representing wind hitting the bike */}
                     <div className="absolute -top-1 w-20 h-20 opacity-30 animate-pulse">
                          <div className={`w-full h-full border-t-4 rounded-full ${colorClass}`} style={{ clipPath: 'polygon(0 0, 100% 0, 50% 50%)'}}></div>
                     </div>
                 </div>
             </div>
 
-            {/* Impact Text */}
             <div className="absolute top-2 w-full text-center">
                 <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-black/40 border ${isHighWind ? 'border-rose-500/50 text-rose-400' : 'border-white/10 text-white/60'}`}>
                     {impactText}
                 </span>
             </div>
 
-            {/* Data Footer */}
             <div className="w-full flex justify-between items-end z-20 mt-1 px-1">
                  <div className="flex flex-col items-start">
                      <div className={`text-3xl font-bold leading-none tabular-nums tracking-tighter ${colorClass} drop-shadow-lg`}>{apparentWind}</div>
@@ -209,7 +188,6 @@ const CompactRadioPlayer = ({ station, isPlaying, onToggle, onExpand }: any) => 
 const VisorOverlay = ({ windChill, apparentWind, rainProb, onClose, windDir, speed }: any) => {
     return (
         <div className="fixed inset-0 z-[100] bg-black text-white flex flex-col items-center justify-between p-6 sm:p-8 font-mono select-none animate-in fade-in duration-300">
-            {/* Top Bar */}
             <div className="w-full flex justify-between items-start z-50">
                 <div className="text-neon-green flex flex-col">
                     <span className="text-[10px] uppercase tracking-[0.2em] text-white/50">VİZÖR MODU</span>
@@ -265,7 +243,7 @@ const DetailOverlay = ({ type, data, onClose, radioHandlers }: any) => {
                     <h2 className="text-base font-bold tracking-tight flex items-center gap-2 text-white/90">
                          {type === 'radio' && <><Radio size={18} className="text-cyan-400"/> <span>Radyo Listesi</span></>}
                          {type === 'ahead' && <><Navigation size={18} className="text-emerald-400"/> <span>Rota Tahmini (10km)</span></>}
-                         {type === 'weather' && <><Cloud size={18} className="text-blue-400"/> <span>Hava Detayı</span></>}
+                         {type === 'weather' && <><Scan size={18} className="text-blue-400"/> <span>50KM Yağış Taraması</span></>}
                          {type === 'copilot' && <><ShieldCheck size={18} className="text-amber-400"/> <span>Co-Pilot Analizi</span></>}
                          {type === 'speed' && <><Navigation size={18} className="text-purple-400"/> <span>Sürüş Özeti</span></>}
                     </h2>
@@ -303,20 +281,27 @@ const DetailOverlay = ({ type, data, onClose, radioHandlers }: any) => {
                      )}
                      {type === 'copilot' && <div className="p-4 bg-white/5 border border-white/10 rounded-2xl"><p className="text-base font-medium leading-relaxed text-white/90">{data.analysis.message}</p><p className="mt-2 text-sm text-white/50">{data.analysis.roadCondition}</p></div>}
                      {type === 'weather' && (
-                         <div className="space-y-3">
-                             <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center text-center">
-                                {getWeatherIcon(data.weather?.weatherCode || 0, 48, true)}
-                                <div className="text-5xl font-thin tracking-tighter mt-2">{Math.round(data.weather?.temp || 0)}°</div>
+                         <div className="space-y-4">
+                             <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-900/30 to-blue-900/10 border border-blue-500/20 flex flex-col items-center justify-center text-center">
+                                <Scan size={48} className="text-blue-400 animate-pulse mb-3"/>
+                                <h3 className="text-blue-300 text-sm font-bold uppercase tracking-widest mb-1">50KM YARIÇAP</h3>
+                                <div className="text-3xl font-light tracking-tighter">
+                                    {data.weather.rainProb > 0 || data.stations.some((s:any) => s.rainProb > 0) ? "YAĞIŞ VAR" : "TEMİZ"}
+                                </div>
+                                <div className="mt-3 text-xs text-white/50">Bölgesel istasyon verilerine göre analiz edildi.</div>
                              </div>
-                             <div className="grid grid-cols-2 gap-3">
-                                <div className="p-3 rounded-2xl bg-cyan-500/10 border border-cyan-400/20">
-                                    <div className="text-[10px] font-bold text-cyan-400 uppercase">HİSSEDİLEN</div>
-                                    <div className="text-2xl font-bold">{data.windChill}°</div>
-                                </div>
-                                <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
-                                    <div className="text-[10px] font-bold opacity-50 uppercase">RÜZGAR</div>
-                                    <div className="text-2xl font-bold">{data.apparentWind} <span className="text-xs font-normal">km</span></div>
-                                </div>
+                             
+                             <div className="space-y-2">
+                                <h4 className="text-xs text-white/40 uppercase tracking-widest px-1">BÖLGESEL RAPOR</h4>
+                                {data.stations.map((s:any, i:number) => (
+                                    <div key={i} className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5">
+                                        <span className="text-xs font-bold text-white/70">{s.direction} ({s.name})</span>
+                                        <div className="flex items-center gap-2">
+                                            {s.rainProb > 0 ? <CloudRain size={12} className="text-blue-400"/> : <Sun size={12} className="text-amber-500"/>}
+                                            <span className="text-xs">{Math.round(s.temp)}°</span>
+                                        </div>
+                                    </div>
+                                ))}
                              </div>
                          </div>
                      )}
@@ -349,29 +334,6 @@ const DetailOverlay = ({ type, data, onClose, radioHandlers }: any) => {
     );
 };
 
-const CalibrationModal = ({ isOpen, onClose, offset, setOffset }: any) => {
-    if (!isOpen) return null;
-    return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={onClose}>
-            <div className="bg-[#1e1e20] p-6 rounded-3xl w-full max-w-sm border border-white/10 shadow-2xl" onClick={e => e.stopPropagation()}>
-                <h2 className="text-xl font-bold mb-4">Pusula Kalibrasyonu</h2>
-                <div className="flex items-center justify-between mb-6 bg-black/20 p-4 rounded-xl">
-                    <button onClick={() => setOffset((p: number) => p - 1)} className="p-4 bg-white/5 rounded-full hover:bg-white/10 active:scale-95"><ArrowDown size={24} className="-rotate-90" /></button>
-                    <div className="flex flex-col items-center">
-                        <span className="text-3xl font-mono font-bold">{offset}°</span>
-                        <span className="text-xs opacity-50 uppercase">SAPMA</span>
-                    </div>
-                    <button onClick={() => setOffset((p: number) => p + 1)} className="p-4 bg-white/5 rounded-full hover:bg-white/10 active:scale-95"><ArrowUp size={24} className="rotate-90" /></button>
-                </div>
-                <div className="text-xs text-white/50 mb-6 text-center leading-relaxed">
-                    Telefonunuzun manyetik sensörü montaj açısına göre sapma gösterebilir. GPS yönü ile eşleşmesi için ayarlayın.
-                </div>
-                <button onClick={() => { localStorage.setItem('compassOffset', offset.toString()); onClose(); }} className="w-full py-4 bg-cyan-500 hover:bg-cyan-400 text-black font-bold rounded-xl transition-colors">KAYDET</button>
-            </div>
-        </div>
-    );
-};
-
 const DigitalClock = ({ isDark, toggleTheme, batteryLevel, btDevice, onConnectBt, isFocusMode }: any) => {
     const [time, setTime] = useState(new Date());
     useEffect(() => { const t = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(t); }, []);
@@ -398,19 +360,30 @@ const DigitalClock = ({ isDark, toggleTheme, batteryLevel, btDevice, onConnectBt
 };
 
 const DigitalSpeedDisplay = ({ speed, onClick }: any) => {
+    // Dynamic sizing logic
+    // 0 km/h -> 4rem size
+    // 150 km/h -> 16rem size (capped)
+    const fontSizeRem = Math.max(4, Math.min(16, 4 + (speed * 0.1)));
+    
     return (
-        <div onClick={onClick} className="flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform duration-200 z-30">
-             <div className="relative">
-                 <span className="text-[28vw] sm:text-[180px] font-['Chakra_Petch'] font-black leading-[0.8] tracking-tighter tabular-nums text-transparent bg-clip-text bg-gradient-to-b from-white to-white/50 drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
+        <div onClick={onClick} className="flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform duration-200 z-30 min-h-[250px]">
+             <div className="relative flex items-end justify-center h-[200px]">
+                 <span 
+                    className="font-['Chakra_Petch'] font-black leading-[0.8] tracking-tighter tabular-nums text-transparent bg-clip-text bg-gradient-to-b from-white to-white/50 drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)] transition-all duration-300 ease-out"
+                    style={{ fontSize: `${fontSizeRem}rem` }}
+                 >
                      {Math.round(speed)}
                  </span>
              </div>
-             <span className="text-sm sm:text-xl font-bold text-white/40 tracking-[0.5em] uppercase mt-2 ml-4">KM/H</span>
+             <span className="text-sm sm:text-xl font-bold text-white/40 tracking-[0.5em] uppercase mt-4 ml-4">KM/H</span>
         </div>
     );
 };
 
 const EnvGrid = ({ weather, aheadWeather, analysis, bikeHeading, tripDistance, currentStation, isPlaying, isDark, onExpand, btDevice, onConnectBt, windChill, apparentWind, isFocusMode, stations, onTogglePlay }: any) => {
+    // Check if any station nearby or current location has rain
+    const isRainInArea = weather?.rainProb > 0 || stations.some((s:any) => s.rainProb > 0);
+
     return (
         <div className={`grid grid-cols-2 gap-3 px-4 pb-6 w-full max-w-lg mx-auto transition-all duration-700 ${isFocusMode ? 'translate-y-20 opacity-0' : 'translate-y-0 opacity-100'}`}>
             
@@ -423,7 +396,7 @@ const EnvGrid = ({ weather, aheadWeather, analysis, bikeHeading, tripDistance, c
                 )}
             </div>
 
-            {/* 2. 10KM Route Forecast (Top Right) - NEW */}
+            {/* 2. 10KM Route Forecast (Top Right) */}
             <div onClick={() => onExpand('ahead')} className="col-span-1 aspect-square bg-emerald-950/20 border border-emerald-500/20 rounded-3xl p-3 relative active:scale-95 transition-transform flex flex-col justify-between group overflow-hidden">
                 <div className="absolute top-0 right-0 p-2 opacity-30 group-hover:opacity-60 transition-opacity"><Navigation size={20} className="text-emerald-400"/></div>
                  <div className="z-10">
@@ -448,16 +421,26 @@ const EnvGrid = ({ weather, aheadWeather, analysis, bikeHeading, tripDistance, c
                 </div>
             </div>
 
-            {/* 3. Current Weather Overview (Bottom Left) */}
-            <div onClick={() => onExpand('weather')} className="col-span-1 aspect-square bg-white/5 border border-white/10 rounded-3xl p-4 relative active:scale-95 transition-transform flex flex-col justify-between items-start group">
-                 <div className="absolute top-3 right-3 opacity-30"><MapPin size={16}/></div>
-                 <div className="text-[9px] font-bold uppercase tracking-widest text-white/40">MEVCUT KONUM</div>
+            {/* 3. 50KM Rain Scanner (Bottom Left) - CHANGED */}
+            <div onClick={() => onExpand('weather')} className={`col-span-1 aspect-square rounded-3xl p-4 relative active:scale-95 transition-transform flex flex-col justify-between items-start group border ${isRainInArea ? 'bg-blue-900/20 border-blue-500/30' : 'bg-white/5 border-white/10'}`}>
+                 <div className="absolute top-3 right-3 opacity-50">
+                    {isRainInArea ? <CloudRain size={16} className="text-blue-400 animate-bounce"/> : <Scan size={16} className="text-white/30"/>}
+                 </div>
+                 <div className="text-[9px] font-bold uppercase tracking-widest text-white/40">50KM YARIÇAP</div>
+                 
                  {weather ? (
                      <>
-                        <div className="self-center mt-1 scale-125">{getWeatherIcon(weather.weatherCode, 40, true)}</div>
-                        <div className="w-full flex justify-between items-end">
-                            <div className="text-2xl font-light tracking-tighter">{Math.round(weather.temp)}°</div>
-                            <div className="text-[10px] font-bold text-white/50 mb-1">%{weather.rainProb} Yağış</div>
+                        <div className="self-center mt-auto mb-auto relative">
+                             {/* Radar Pulse Effect */}
+                             {!isRainInArea && (
+                                <div className="absolute inset-0 rounded-full border border-emerald-500/30 animate-[ping_3s_linear_infinite]"></div>
+                             )}
+                             <Radar size={40} className={isRainInArea ? 'text-blue-400' : 'text-emerald-500/50'} />
+                        </div>
+                        <div className="w-full text-center">
+                            <div className={`text-lg font-bold tracking-tight ${isRainInArea ? 'text-blue-300' : 'text-emerald-400'}`}>
+                                {isRainInArea ? "YAĞIŞ RİSKİ" : "BÖLGE TEMİZ"}
+                            </div>
                         </div>
                      </>
                  ) : (
@@ -475,6 +458,40 @@ const EnvGrid = ({ weather, aheadWeather, analysis, bikeHeading, tripDistance, c
                  <div className="text-[9px] font-medium text-white/60 leading-snug line-clamp-2 mt-auto">
                      {analysis.message}
                  </div>
+            </div>
+        </div>
+    );
+};
+
+const CalibrationModal = ({ isOpen, onClose, offset, setOffset }: any) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in" onClick={onClose}>
+            <div className="bg-[#18181b] border border-white/10 p-6 rounded-3xl w-full max-w-xs flex flex-col items-center" onClick={e => e.stopPropagation()}>
+                <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-4">
+                    <Navigation size={24} className="text-white/70" />
+                </div>
+                <h3 className="text-lg font-bold text-white mb-1">Pusula Ayarı</h3>
+                <p className="text-xs text-white/50 text-center mb-6 leading-relaxed">Telefonunuzun pusulası ile GPS yönü arasındaki sapmayı manuel olarak düzeltin.</p>
+                
+                <div className="flex items-center justify-center gap-4 mb-8 w-full">
+                    <button onClick={() => setOffset((prev: number) => prev - 5)} className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 active:bg-white/20 flex items-center justify-center transition-colors">
+                        <ArrowDown size={18} className="text-white rotate-90" />
+                    </button>
+                    <div className="flex flex-col items-center w-20">
+                        <span className="text-3xl font-bold tabular-nums tracking-tighter">{offset}°</span>
+                        <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest">SAPMA</span>
+                    </div>
+                    <button onClick={() => setOffset((prev: number) => prev + 5)} className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 active:bg-white/20 flex items-center justify-center transition-colors">
+                        <ArrowUp size={18} className="text-white rotate-90" />
+                    </button>
+                </div>
+
+                <div className="flex gap-2 w-full">
+                     <button onClick={() => { setOffset(0); localStorage.setItem('compassOffset', '0'); onClose(); }} className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold text-white/60 transition-colors">SIFIRLA</button>
+                     <button onClick={() => { localStorage.setItem('compassOffset', offset.toString()); onClose(); }} className="flex-[2] py-3 rounded-xl bg-white text-black text-xs font-bold hover:bg-white/90 transition-colors">KAYDET</button>
+                </div>
             </div>
         </div>
     );
@@ -671,6 +688,13 @@ const App: React.FC = () => {
 
                 lastSpeedRef.current = safeKmh;
                 setSpeed(safeKmh);
+                
+                // Haptic Feedback for Speed
+                if (safeKmh > 10 && (navigator as any).vibrate) {
+                    // Slight vibration pulse on update if speed > 10
+                    (navigator as any).vibrate(Math.min(safeKmh / 2, 40)); 
+                }
+
                 if (safeKmh > maxSpeed) setMaxSpeed(safeKmh);
                 if (safeKmh > 5) setTripDistance(prev => prev + (safeKmh * (timeDelta / 3600)));
                 setGpsHeading(hdg);
@@ -734,9 +758,8 @@ const App: React.FC = () => {
 
   return (
     <div className="bg-transparent w-full h-[100dvh] flex flex-col relative overflow-hidden font-sans select-none text-white">
-        {/* Simple Background Scene */}
+        {/* Simple Background Scene (No Grid) */}
         <div className="scene-container">
-            <div className="tech-grid"></div>
         </div>
 
         <CalibrationModal isOpen={showCalibration} onClose={() => setShowCalibration(false)} offset={compassOffset} setOffset={setCompassOffset} />
