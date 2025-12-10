@@ -30,3 +30,8 @@ export interface CoPilotAnalysis {
   roadCondition: string;
   color: string;
 }
+
+export interface RadioStation {
+  name: string;
+  url: string;
+}

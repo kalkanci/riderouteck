@@ -11,6 +11,11 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/5766/5766324.png">
     
+    <!-- Sporty Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,300;0,400;0,700;0,900;1,700&display=swap" rel="stylesheet">
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -49,7 +54,8 @@
         left: 50%;
         width: 200vw;
         height: 100vh;
-        transform: translateX(-50%) perspective(300px) rotateX(80deg);
+        /* Updated Perspective: rotateX changed from 80deg to 60deg for a higher view */
+        transform: translateX(-50%) perspective(300px) rotateX(60deg);
         background: 
             /* Center Line */
             linear-gradient(90deg, transparent 49.5%, rgba(255, 255, 255, 0.4) 49.5%, rgba(255, 255, 255, 0.4) 50.5%, transparent 50.5%),
@@ -73,7 +79,9 @@
         background: 
             linear-gradient(0deg, rgba(255,255,255,0.05) 1px, transparent 1px);
         background-size: 100% 100px;
-        animation: roadMove 1s linear infinite;
+        /* Dynamic animation duration handled via JS variable --anim-duration */
+        animation: roadMove var(--anim-duration, 100s) linear infinite;
+        will-change: transform;
       }
 
       @keyframes roadMove {
@@ -84,7 +92,7 @@
       /* Horizon Glow */
       .horizon-glow {
         position: absolute;
-        top: 40%;
+        top: 35%; /* Adjusted for higher perspective */
         left: 0;
         width: 100%;
         height: 1px;

@@ -1,8 +1,7 @@
 
-const CACHE_NAME = 'motorota-v10-stable';
+const CACHE_NAME = 'motorota-v11-production';
 
-// Add critical CDNs to static assets to ensure they are available offline
-// REMOVED: './index.tsx' because it does not exist in the production build (dist folder).
+// Critical static assets
 const STATIC_ASSETS = [
   './index.html',
   './manifest.json',
@@ -20,7 +19,6 @@ self.addEventListener('install', (event) => {
   self.skipWaiting(); 
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      // Use addAllSettled if available or handle errors individually to prevent one failure blocking all
       return cache.addAll(STATIC_ASSETS).catch(err => console.error("Cache add failed", err));
     })
   );
@@ -42,12 +40,10 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch Event: Stale-While-Revalidate Strategy
+// Fetch Event: Stale-While-Revalidate with Navigation Fallback
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  // Strategy: Try cache first, then network. If network succeeds, update cache.
-  // This is better for "shell" architecture.
   event.respondWith(
     caches.open(CACHE_NAME).then(async (cache) => {
       const cachedResponse = await cache.match(event.request);
@@ -55,21 +51,17 @@ self.addEventListener('fetch', (event) => {
       const fetchPromise = fetch(event.request)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
-            // Clone and cache the new version
             cache.put(event.request, networkResponse.clone());
           }
           return networkResponse;
         })
         .catch(() => {
-          // Network failed
-          // If navigation request and no cache, return index.html (offline fallback)
+          // Fallback for navigation (SPA support)
           if (event.request.mode === 'navigate') {
             return cache.match('./index.html');
           }
-          // Return null/undefined if not found in cache and network fails
         });
 
-      // Return cached response immediately if available, otherwise wait for network
       return cachedResponse || fetchPromise;
     })
   );
